@@ -214,10 +214,16 @@ NEO4J_DATABASE=your-database-name
 **Files to create:**
 - `main.py` - CLI entry point
 - `config.yaml` - Simple configuration
-- `models.py` - Data classes
-- `cobol_parser.py` - Regex-based parsing
-- `llm_analyzer.py` - LLM integration
+- `src/config_manager.py` - Configuration loading and validation
+- `src/output_generator.py` - JSON/text output generation
+- `src/utils.py` - Utility functions
+- `src/cli.py` - Command-line interface logic
 - `.env` - Environment variables (from .env.example template)
+
+**Language-specific components (in `lang/` directory):**
+- `lang/cobol/parser/cobol_parser.py` - COBOL-specific parsing
+- `lang/cobol/parser/llm_analyzer.py` - COBOL-specific LLM analysis
+- `lang/cobol/ontology/cobol_ontology.py` - COBOL-specific ontology
 
 ### Step 2: COBOL Structure Detection (Day 2)
 **Focus: Accuracy over complexity**
@@ -489,12 +495,13 @@ lang/
 ```
 src/
 ├── __init__.py                        # Package initialization
-├── models.py                          # Data classes (legacy - now in lang/)
 ├── output_generator.py                # JSON/text output generation
 ├── config_manager.py                  # Configuration loading and validation
 ├── utils.py                           # Utility functions
 └── cli.py                            # Command-line interface logic
 ```
+
+**Note**: The `src/` directory contains only **language-agnostic components**. All language-specific code (parsers, analyzers, ontologies) is located in the `lang/` directory structure.
 
 ### Data and Fixtures (`data/` directory)
 ```
@@ -564,11 +571,10 @@ llm-code-grapher/
 ├── setup.py
 ├── src/
 │   ├── __init__.py
-│   ├── models.py                          # Legacy - now in lang/
-│   ├── output_generator.py
-│   ├── config_manager.py
-│   ├── utils.py
-│   └── cli.py
+│   ├── output_generator.py                # Language-agnostic output generation
+│   ├── config_manager.py                  # Language-agnostic configuration
+│   ├── utils.py                           # Language-agnostic utilities
+│   └── cli.py                            # Language-agnostic CLI
 ├── data/
 │   ├── fixtures/
 │   │   └── vasu_fraud_management_cobol_reformatted.cbl
@@ -665,6 +671,7 @@ touch tests/test_integration.py scripts/validate_accuracy.py
 - **90% of logic** in base classes (`lang/base/`)
 - **Language-specific extensions** only contain unique logic
 - **New languages** need minimal code (~20-30 lines)
+- **Language-agnostic components** in `src/` directory
 
 ### 2. **Extensible Architecture**
 - **Abstract base classes** for parsers, ontologies, and tests
