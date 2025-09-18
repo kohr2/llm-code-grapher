@@ -3,42 +3,202 @@ COBOL Program Ontology Validator
 Validates that parsed COBOL programs conform to the ontology schema
 """
 
-import yaml
-from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 from dataclasses import dataclass
 
-
-@dataclass
-class ValidationResult:
-    """Result of ontology validation"""
-    is_valid: bool
-    errors: List[str]
-    warnings: List[str]
-    metrics: Dict[str, Any]
+from lang.base.ontology import BaseOntology, BaseOntologyValidator, ValidationResult
+from lang.base.ontology.base_models import RiskLevel, QualityLevel, ModernizationLevel
 
 
-class COBOLOntologyValidator:
+class COBOLOntologyValidator(BaseOntologyValidator):
     """Validates COBOL program analysis results against the ontology schema"""
     
-    def __init__(self, ontology_file: Optional[Path] = None):
-        """Initialize validator with ontology schema"""
-        if ontology_file is None:
-            ontology_file = Path(__file__).parent / "cobol_program_ontology.yaml"
+    def __init__(self):
+        """Initialize validator with COBOL ontology"""
+        from .cobol_ontology import COBOLOntology
+        ontology = COBOLOntology()
+        super().__init__(ontology)
         
-        self.ontology = self._load_ontology(ontology_file)
-        self.valid_risk_levels = ["LOW", "MEDIUM", "HIGH", "CRITICAL"]
-        self.valid_relationship_types = [
-            "CALLS", "USES", "MODIFIES", "DEPENDS_ON", 
-            "DATA_FLOW", "CONTROL_FLOW", "IMPLEMENTS", "CONTAINS"
-        ]
-        self.valid_quality_levels = ["LOW", "MEDIUM", "HIGH"]
-        self.valid_modernization_levels = ["LOW", "MEDIUM", "HIGH"]
+        # COBOL-specific validation rules
+        self.valid_relationship_types = self.ontology.get_relationship_types()
+        self.valid_section_types = self.ontology.get_section_types()
+        self.valid_data_types = self.ontology.get_cobol_data_types()
+        self.valid_operations = self.ontology.get_cobol_operations()
     
-    def _load_ontology(self, ontology_file: Path) -> Dict[str, Any]:
-        """Load ontology schema from YAML file"""
-        with open(ontology_file, 'r', encoding='utf-8') as f:
-            return yaml.safe_load(f)
+    def validate_program(self, program) -> ValidationResult:
+        """Validate a COBOL program against the ontology"""
+        errors = []
+        warnings = []
+        metrics = {}
+        
+        # Validate program name
+        if not hasattr(program, 'name') or not program.name:
+            errors.append("Program missing required 'name' property")
+        
+        # Validate language
+        if hasattr(program, 'language'):
+            if program.language != "COBOL":
+                warnings.append(f"Program language is {program.language}, expected COBOL")
+        else:
+            warnings.append("Program missing language property")
+        
+        # Validate metadata
+        if hasattr(program, 'metadata'):
+            if not isinstance(program.metadata, dict):
+                errors.append("Program metadata must be a dictionary")
+        else:
+            warnings.append("Program missing metadata")
+        
+        return ValidationResult(
+            is_valid=len(errors) == 0,
+            errors=errors,
+            warnings=warnings,
+            metrics=metrics,
+            language=self.language,
+            ontology_version=self.ontology.get_ontology_version()
+        )
+    
+    def validate_section(self, section) -> ValidationResult:
+        """Validate a COBOL section against the ontology"""
+        errors = []
+        warnings = []
+        metrics = {}
+        
+        # Use base class common validation
+        common_errors, common_warnings = self._validate_common_properties(
+            section, f"Section {getattr(section, 'name', 'UNKNOWN')}", ["name", "type"]
+        )
+        errors.extend(common_errors)
+        warnings.extend(common_warnings)
+        
+        # COBOL-specific validation
+        if hasattr(section, 'type') and section.type not in self.valid_section_types:
+            errors.append(f"Section {section.name} has invalid type: {section.type}")
+        
+        return ValidationResult(
+            is_valid=len(errors) == 0,
+            errors=errors,
+            warnings=warnings,
+            metrics=metrics,
+            language=self.language,
+            ontology_version=self.ontology.get_ontology_version()
+        )
+    
+    def validate_subsection(self, subsection) -> ValidationResult:
+        """Validate a COBOL subsection against the ontology"""
+        errors = []
+        warnings = []
+        metrics = {}
+        
+        # Use base class common validation
+        common_errors, common_warnings = self._validate_common_properties(
+            subsection, f"Subsection {getattr(subsection, 'name', 'UNKNOWN')}", ["name", "parent_section"]
+        )
+        errors.extend(common_errors)
+        warnings.extend(common_warnings)
+        
+        return ValidationResult(
+            is_valid=len(errors) == 0,
+            errors=errors,
+            warnings=warnings,
+            metrics=metrics,
+            language=self.language,
+            ontology_version=self.ontology.get_ontology_version()
+        )
+    
+    def validate_relationship(self, relationship) -> ValidationResult:
+        """Validate a COBOL relationship against the ontology"""
+        errors = []
+        warnings = []
+        metrics = {}
+        
+        # Validate required properties
+        if not hasattr(relationship, 'source') or not relationship.source:
+            errors.append("Relationship missing required 'source' property")
+        
+        if not hasattr(relationship, 'target') or not relationship.target:
+            errors.append("Relationship missing required 'target' property")
+        
+        if not hasattr(relationship, 'relationship_type') or not relationship.relationship_type:
+            errors.append("Relationship missing required 'relationship_type' property")
+        elif relationship.relationship_type not in self.valid_relationship_types:
+            errors.append(f"Relationship has invalid type: {relationship.relationship_type}")
+        
+        # Validate confidence
+        if hasattr(relationship, 'confidence'):
+            if not (0.0 <= relationship.confidence <= 1.0):
+                errors.append(f"Relationship has invalid confidence: {relationship.confidence}")
+        else:
+            warnings.append(f"Relationship missing confidence score")
+        
+        # Validate strength
+        if hasattr(relationship, 'strength'):
+            if not (0.0 <= relationship.strength <= 1.0):
+                errors.append(f"Relationship has invalid strength: {relationship.strength}")
+        else:
+            warnings.append(f"Relationship missing strength score")
+        
+        return ValidationResult(
+            is_valid=len(errors) == 0,
+            errors=errors,
+            warnings=warnings,
+            metrics=metrics,
+            language=self.language,
+            ontology_version=self.ontology.get_ontology_version()
+        )
+    
+    def validate_data_item(self, data_item) -> ValidationResult:
+        """Validate a COBOL data item against the ontology"""
+        errors = []
+        warnings = []
+        metrics = {}
+        
+        # Validate required properties
+        if not hasattr(data_item, 'name') or not data_item.name:
+            errors.append("Data item missing required 'name' property")
+        
+        if not hasattr(data_item, 'data_type') or not data_item.data_type:
+            errors.append(f"Data item {data_item.name} missing required 'data_type' property")
+        elif data_item.data_type not in self.valid_data_types:
+            warnings.append(f"Data item {data_item.name} has unknown data type: {data_item.data_type}")
+        
+        return ValidationResult(
+            is_valid=len(errors) == 0,
+            errors=errors,
+            warnings=warnings,
+            metrics=metrics,
+            language=self.language,
+            ontology_version=self.ontology.get_ontology_version()
+        )
+    
+    def validate_business_rule(self, business_rule) -> ValidationResult:
+        """Validate a COBOL business rule against the ontology"""
+        errors = []
+        warnings = []
+        metrics = {}
+        
+        # Validate required properties
+        if not hasattr(business_rule, 'rule_id') or not business_rule.rule_id:
+            errors.append("Business rule missing required 'rule_id' property")
+        
+        if not hasattr(business_rule, 'description') or not business_rule.description:
+            errors.append(f"Business rule {business_rule.rule_id} missing required 'description' property")
+        
+        # Validate risk level
+        if hasattr(business_rule, 'risk_level'):
+            if not self.ontology.validate_risk_level(business_rule.risk_level):
+                errors.append(f"Business rule {business_rule.rule_id} has invalid risk_level: {business_rule.risk_level}")
+        else:
+            warnings.append(f"Business rule {business_rule.rule_id} missing risk_level")
+        
+        return ValidationResult(
+            is_valid=len(errors) == 0,
+            errors=errors,
+            warnings=warnings,
+            metrics=metrics,
+            language=self.language,
+            ontology_version=self.ontology.get_ontology_version()
+        )
     
     def validate_analysis_result(self, result) -> ValidationResult:
         """Validate a COBOL analysis result against the ontology"""

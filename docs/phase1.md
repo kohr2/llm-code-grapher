@@ -88,7 +88,7 @@ class COBOLBusinessRule:
 ```
 
 ### 4. COBOL Ontology Schema
-The complete ontology definition is stored in `ontology/cobol/cobol_program_ontology.yaml`.
+The complete ontology definition is stored in `lang/cobol/ontology/cobol_program_ontology.yaml`.
 
 **Key Concepts:**
 - **Program**: Complete COBOL program with metadata and quality metrics
@@ -105,11 +105,40 @@ The complete ontology definition is stored in `ontology/cobol/cobol_program_onto
 - **Quality Indicators**: Code coverage, documentation quality, test coverage
 - **Modernization Potential**: LOW, MEDIUM, HIGH
 
-See `ontology/cobol/README.md` for detailed documentation and examples.
+See `lang/cobol/ontology/README.md` for detailed documentation and examples.
 
-**Extensible Design**: The ontology structure is designed to support multiple programming languages and domains. Future ontologies can be added as separate subdirectories (e.g., `ontology/java/`, `ontology/python/`, `ontology/legacy/`) while maintaining the same validation framework.
+**Extensible Design**: The language structure is designed to support multiple programming languages and domains. Future languages can be added as separate subdirectories (e.g., `lang/java/`, `lang/python/`, `lang/legacy/`) while maintaining the same parsing and ontology framework.
 
-### 5. Basic Output
+### 5. Base Parser Framework
+The project uses an abstract base parser framework that ensures consistency across all programming languages:
+
+**Base Parser (`lang/base/parser/`):**
+- `BaseParser` - Abstract base class for language-specific parsers
+- `BaseLLMAnalyzer` - Abstract base class for LLM analysis
+- `BaseParserResult` - Abstract base class for parsing results
+- Common parsing utilities and validation methods
+
+**Base Ontology (`lang/base/ontology/`):**
+- `BaseOntology` - Abstract base class for ontology management
+- `BaseOntologyValidator` - Abstract base class for validation
+- `BaseProgram`, `BaseSection`, `BaseSubsection`, `BaseRelationship` - Abstract data models
+- Common validation utilities and metrics
+
+**Language-Specific Extensions:**
+- Each language extends the base classes with language-specific logic only
+- COBOL parser extends `BaseParser` with COBOL-specific patterns and rules
+- COBOL ontology extends `BaseOntology` with COBOL-specific concepts
+- Future languages (Java, Python, etc.) will follow the same pattern
+
+**Optimization Benefits:**
+- **Maximum Code Reuse**: 90% of logic in base classes
+- **Consistency**: All languages follow the same parsing interface
+- **Maintainability**: Common parsing logic centralized
+- **Extensibility**: New languages need minimal code (~20-30 lines)
+- **Testability**: Base classes fully testable independently
+- **Performance**: Minimal code duplication across languages
+
+### 6. Basic Output
 - **JSON output** with all extracted data
 - **Simple text summary** of findings
 - **Confidence indicators** for manual review
@@ -399,11 +428,30 @@ docs/                                  # Documentation
 ├── setup.md                          # Setup instructions
 ├── usage.md                          # Usage examples
 ├── api.md                            # API documentation
-├── ontology/                         # Domain-specific Ontologies
-│   └── cobol/                        # COBOL Program Ontology
-│       ├── cobol_program_ontology.yaml   # Main ontology definition
-│       ├── README.md                     # Ontology documentation
-│       └── cobol_ontology_validator.py   # Ontology validation utility
+├── lang/                             # Language-specific Packages
+│   ├── base/                         # Abstract Base Classes
+│   │   ├── parser/                   # Base Parser Framework
+│   │   │   ├── base_parser.py        # Abstract base parser
+│   │   │   └── base_llm_analyzer.py  # Abstract base LLM analyzer
+│   │   └── ontology/                 # Base Ontology Framework
+│   │       ├── base_models.py        # Abstract base models
+│   │       ├── base_ontology.py      # Abstract base ontology
+│   │       └── base_ontology.yaml    # Base ontology schema
+│   └── cobol/                        # COBOL Language Package
+│       ├── parser/                   # COBOL Parser Components
+│       │   ├── cobol_parser.py       # COBOL parser (extends base)
+│       │   └── llm_analyzer.py       # COBOL LLM analyzer (extends base)
+│       ├── ontology/                 # COBOL Ontology
+│       │   ├── cobol_ontology.py     # COBOL ontology (extends base)
+│       │   ├── cobol_program_ontology.yaml   # COBOL-specific schema
+│       │   ├── cobol_ontology_validator.py   # COBOL validator (extends base)
+│       │   └── README.md             # Ontology documentation
+│       └── tests/                    # COBOL-specific Tests
+│           ├── test_cobol_parser.py  # Parser tests
+│           ├── test_ontology_validator.py    # Ontology tests
+│           ├── test_integration.py   # Integration tests
+│           ├── test_models.py        # Model tests
+│           └── test_fixtures/        # Test data
 
 scripts/                               # Utility scripts
 ├── setup_env.sh                      # Environment setup
@@ -460,11 +508,30 @@ llm-code-grapher/
 │   ├── setup.md
 │   ├── usage.md
 │   └── api.md
-├── ontology/
+├── lang/
+│   ├── base/
+│   │   ├── parser/
+│   │   │   ├── base_parser.py
+│   │   │   └── base_llm_analyzer.py
+│   │   └── ontology/
+│   │       ├── base_models.py
+│   │       ├── base_ontology.py
+│   │       └── base_ontology.yaml
 │   └── cobol/
-│       ├── cobol_program_ontology.yaml
-│       ├── README.md
-│       └── cobol_ontology_validator.py
+│       ├── parser/
+│       │   ├── cobol_parser.py
+│       │   └── llm_analyzer.py
+│       ├── ontology/
+│       │   ├── cobol_ontology.py
+│       │   ├── cobol_program_ontology.yaml
+│       │   ├── cobol_ontology_validator.py
+│       │   └── README.md
+│       └── tests/
+│           ├── test_cobol_parser.py
+│           ├── test_ontology_validator.py
+│           ├── test_integration.py
+│           ├── test_models.py
+│           └── test_fixtures/
 ├── scripts/
 │   ├── setup_env.sh
 │   ├── run_tests.sh

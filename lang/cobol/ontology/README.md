@@ -6,7 +6,7 @@ This directory contains the formal ontology definition for COBOL program analysi
 
 ## Files
 
-- `cobol_program_ontology.yaml` - Main ontology definition in YAML format
+- `cobol_ontology.py` - Main ontology definition using Python interfaces
 - `cobol_ontology_validator.py` - Python validator for ontology compliance
 - `README.md` - This documentation file
 
@@ -58,7 +58,7 @@ The ontology includes validation rules to ensure:
 
 ## Examples
 
-See the `cobol_program_ontology.yaml` file for detailed examples of each concept type.
+See the `cobol_ontology.py` file for detailed examples of each concept type.
 
 ## Integration
 
