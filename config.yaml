@@ -16,13 +16,14 @@ processing:
 
 cobol:
   section_patterns:
-    - "^\\s*[A-Z0-9-]+\\s+SECTION\\s*\\."
-    - "^\\s*[A-Z0-9-]+\\s+PARAGRAPH\\s*\\."
+    - "^\\d+\\s+[A-Z0-9-]+\\s+DIVISION\\s*\\."
+    - "^\\d+\\s+[A-Z0-9-]+\\s+SECTION\\s*\\."
+    - "^\\d+\\s+[A-Z0-9-]+\\s+PARAGRAPH\\s*\\."
   subsection_patterns:
-    - "^\\s*[A-Z0-9-]+\\s*\\."
+    - "^\\d+\\s+[A-Z0-9-]+\\s*\\."
   data_patterns:
-    - "^\\s*[0-9]+\\s+[A-Z0-9-]+\\s+.*PIC\\s+"
-    - "^\\s*[0-9]+\\s+[A-Z0-9-]+\\s+.*REDEFINES\\s+"
+    - "^\\d+\\s+[0-9]+\\s+[A-Z0-9-]+\\s+.*PIC\\s+"
+    - "^\\d+\\s+[0-9]+\\s+[A-Z0-9-]+\\s+.*REDEFINES\\s+"
 
 output:
   format: "json"  # json, yaml, graphml
