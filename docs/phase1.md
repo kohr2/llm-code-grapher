@@ -18,6 +18,7 @@
 - **Simple prompt engineering** with clear, focused prompts
 - **Business logic extraction** for each section/subsection
 - **Confidence scoring** for all extractions
+- **Environment-based API key configuration** via `.env` file
 
 ### 3. Simple Data Model with COBOL Ontology
 ```python
@@ -165,13 +166,50 @@ The project uses an abstract base parser framework that ensures consistency acro
 - **Simple text summary** of findings
 - **Confidence indicators** for manual review
 
+### 7. Graph Database Integration (Neo4j)
+- **Neo4j graph database** for storing code relationships
+- **Environment-based configuration** via `.env` file
+- **Structured data storage** for sections, subsections, and relationships
+- **Query capabilities** for complex code analysis
+
 ## Implementation Steps
 
 ### Step 1: Project Setup (Day 1)
 ```bash
-# Minimal dependencies
-pip install openai pydantic rich click pyyaml
+# Install dependencies
+pip install -r requirements.txt
+
+# Set up environment variables
+cp .env.example .env
+# Edit .env with your API keys and database credentials
+
+# Optional: Install Neo4j (if not already installed)
+# Using Docker (recommended):
+docker run --name neo4j -p 7474:7474 -p 7687:7687 -e NEO4J_AUTH=neo4j/dashboard-killer neo4j:latest
+
+# Or using Homebrew (macOS):
+# brew install neo4j
+# brew services start neo4j
 ```
+
+**Environment Variables (.env):**
+```bash
+# LLM Configuration
+OPENAI_API_KEY="your-openai-api-key-here"
+
+# Graph Database Configuration (Neo4j)
+NEO4J_URI=bolt://localhost:7687
+NEO4J_USERNAME=neo4j
+NEO4J_PASSWORD=your-neo4j-password
+NEO4J_DATABASE=your-database-name
+```
+
+**Dependencies (requirements.txt):**
+- Core: `langchain`, `openai`, `anthropic`, `networkx`, `pydantic`, `rich`, `click`
+- Text processing: `nltk`, `spacy`, `regex`
+- Data handling: `pandas`, `pyyaml`
+- Visualization: `matplotlib`, `plotly`, `graphviz`
+- Development: `pytest`, `black`, `flake8`
 
 **Files to create:**
 - `main.py` - CLI entry point
@@ -179,6 +217,7 @@ pip install openai pydantic rich click pyyaml
 - `models.py` - Data classes
 - `cobol_parser.py` - Regex-based parsing
 - `llm_analyzer.py` - LLM integration
+- `.env` - Environment variables (from .env.example template)
 
 ### Step 2: COBOL Structure Detection (Day 2)
 **Focus: Accuracy over complexity**
