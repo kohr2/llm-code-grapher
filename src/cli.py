@@ -113,8 +113,8 @@ def analyze(ctx, input_file: str, output_dir: Optional[str],
                 section.name, 
                 section.type
             )
-            section.business_logic = analysis.get('description', '')
-            section.confidence = analysis.get('confidence', 0.0)
+            section.business_logic = analysis.business_logic
+            section.confidence = analysis.confidence
             analyzed_sections.append(section)
         
         # Create ontology
@@ -234,11 +234,21 @@ def validate():
         click.echo(f"✗ Configuration error: {e}")
         return
     
-    # Check API key
-    if config.llm.api_key:
-        click.echo("✓ OpenAI API key is set")
+    # Check LLM provider configuration
+    provider = config.llm.provider.lower()
+    if provider == "openai":
+        if config.llm.api_key:
+            click.echo("✓ OpenAI API key is set")
+        else:
+            click.echo("✗ OpenAI API key is not set")
+    elif provider == "ollama":
+        click.echo("✓ Using Ollama provider (local)")
+        if config.llm.base_url:
+            click.echo(f"  Base URL: {config.llm.base_url}")
+        else:
+            click.echo("  Using default Ollama URL: http://localhost:11434")
     else:
-        click.echo("✗ OpenAI API key is not set")
+        click.echo(f"✗ Unknown provider: {provider}")
     
     # Check output directory
     output_dir = Path(config.output.output_dir)
