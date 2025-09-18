@@ -5,9 +5,9 @@ Uses LLM to analyze COBOL code and extract semantic information
 
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
-import openai
 
 from lang.base.parser import BaseLLMAnalyzer, BaseLLMAnalysisResult
+from lang.base.parser.llm_provider import LLMProviderConfig
 
 
 @dataclass
@@ -50,26 +50,27 @@ class COBOLAnalysisResult(BaseLLMAnalysisResult):
 class COBOLAnalyzer(BaseLLMAnalyzer):
     """Uses LLM to analyze COBOL code"""
     
-    def __init__(self, api_key: Optional[str] = None, model: str = "gpt-4"):
+    def __init__(self, provider_config: LLMProviderConfig):
         """Initialize the COBOL LLM analyzer"""
-        super().__init__("COBOL", api_key, model)
+        super().__init__("COBOL", provider_config)
     
     def analyze_section(self, code: str, section_name: str, section_type: str) -> COBOLAnalysisResult:
         """Analyze a COBOL section using LLM"""
         prompt = self._create_analysis_prompt(code, section_name, section_type)
         
         try:
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": "You are an expert COBOL analyst. Analyze the provided COBOL code and extract business logic, assess complexity, and identify risks."},
-                    {"role": "user", "content": prompt}
-                ],
+            messages = [
+                {"role": "system", "content": "You are an expert COBOL analyst. Analyze the provided COBOL code and extract business logic, assess complexity, and identify risks."},
+                {"role": "user", "content": prompt}
+            ]
+            
+            response = self.provider.generate_response(
+                messages=messages,
                 max_tokens=500,
                 temperature=0.3
             )
             
-            result = self._parse_llm_response(response.choices[0].message.content)
+            result = self._parse_llm_response(response)
             return result
             
         except Exception as e:

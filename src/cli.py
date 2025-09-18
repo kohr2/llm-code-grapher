@@ -24,8 +24,14 @@ def cli(ctx, config: Optional[str], verbose: bool):
     ctx.obj['verbose'] = verbose
     
     if config:
-        # TODO: Implement config file override
-        pass
+        # Load custom config file
+        try:
+            reload_config(config)
+            if verbose:
+                click.echo(f"Loaded custom config from: {config}")
+        except Exception as e:
+            click.echo(f"Error loading config file {config}: {e}", err=True)
+            sys.exit(1)
 
 
 @cli.command()
@@ -53,16 +59,61 @@ def analyze(ctx, input_file: str, output_dir: Optional[str],
         if verbose:
             click.echo(f"Read {len(cobol_code)} characters from {input_file}")
         
-        # TODO: Implement actual COBOL analysis
-        # This is a placeholder for the main analysis logic
+        # Perform COBOL analysis using the language framework
         log_processing_step("Performing COBOL analysis")
         
-        # Placeholder analysis result
+        # Import COBOL components
+        from lang.cobol.parser.cobol_parser import COBOLParser
+        from lang.cobol.parser.llm_analyzer import COBOLAnalyzer
+        from lang.cobol.ontology.cobol_ontology import COBOLOntology
+        
+        # Initialize components
+        parser = COBOLParser()
+        analyzer = COBOLAnalyzer()
+        ontology = COBOLOntology()
+        
+        # Parse the COBOL file
+        log_processing_step("Parsing COBOL structure")
+        sections = parser.parse_sections(cobol_code)
+        
+        # Analyze with LLM
+        log_processing_step("Analyzing with LLM")
+        analyzed_sections = []
+        for section in sections:
+            analysis = analyzer.analyze_section(
+                section.code, 
+                section.name, 
+                section.type
+            )
+            section.business_logic = analysis.get('description', '')
+            section.confidence = analysis.get('confidence', 0.0)
+            analyzed_sections.append(section)
+        
+        # Create ontology
+        log_processing_step("Creating COBOL ontology")
+        program_ontology = ontology.create_program_ontology(
+            program_name=Path(input_file).stem,
+            sections=analyzed_sections
+        )
+        
+        # Create analysis result from ontology
         analysis_result = {
-            "program_name": Path(input_file).stem,
-            "total_sections": 0,
-            "total_subsections": 0,
-            "sections": [],
+            "program_name": program_ontology.program_name,
+            "total_sections": len(program_ontology.sections),
+            "total_subsections": len(program_ontology.subsections),
+            "sections": [
+                {
+                    "name": section.name,
+                    "type": section.type,
+                    "line_range": section.line_range,
+                    "line_count": section.line_count,
+                    "business_logic": section.business_logic,
+                    "confidence": section.confidence,
+                    "complexity_score": getattr(section, 'complexity_score', 0.0),
+                    "risk_level": getattr(section, 'risk_level', 'LOW')
+                }
+                for section in program_ontology.sections
+            ],
             "relationships": [],
             "ontology_metrics": {
                 "complexity_metrics": {

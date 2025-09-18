@@ -6,9 +6,13 @@ Common utility functions used across the application.
 
 import re
 import os
+import logging
 from pathlib import Path
 from typing import List, Tuple, Optional, Dict, Any
 from datetime import datetime
+
+# Configure logging
+logger = logging.getLogger(__name__)
 
 
 def read_file_safely(file_path: str) -> str:
@@ -185,4 +189,4 @@ def log_processing_step(step: str, details: str = "") -> None:
     message = f"[{timestamp}] {step}"
     if details:
         message += f" - {details}"
-    print(message)  # TODO: Replace with proper logging
+    logger.info(message)

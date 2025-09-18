@@ -18,6 +18,7 @@ class LLMConfig(BaseModel):
     max_tokens: int = 4000
     temperature: float = 0.1
     api_key: Optional[str] = None
+    base_url: Optional[str] = None  # For Ollama and other local providers
 
 
 class ProcessingConfig(BaseModel):
@@ -109,10 +110,22 @@ class ConfigManager:
     def _apply_env_overrides(self, config_data: Dict[str, Any]) -> Dict[str, Any]:
         """Apply environment variable overrides to config"""
         # LLM configuration
+        if "llm" not in config_data:
+            config_data["llm"] = {}
+            
+        # API keys
         if "OPENAI_API_KEY" in os.environ:
-            if "llm" not in config_data:
-                config_data["llm"] = {}
             config_data["llm"]["api_key"] = os.environ["OPENAI_API_KEY"]
+        
+        # Provider-specific settings
+        if "LLM_PROVIDER" in os.environ:
+            config_data["llm"]["provider"] = os.environ["LLM_PROVIDER"]
+        
+        if "LLM_MODEL" in os.environ:
+            config_data["llm"]["model"] = os.environ["LLM_MODEL"]
+            
+        if "LLM_BASE_URL" in os.environ:
+            config_data["llm"]["base_url"] = os.environ["LLM_BASE_URL"]
         
         # Neo4j configuration
         neo4j_config = {}

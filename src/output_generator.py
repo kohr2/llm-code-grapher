@@ -154,9 +154,10 @@ class OutputGenerator:
         # Generate text summary
         outputs["text"] = self.generate_text_summary(analysis_result, input_filename)
         
-        # TODO: Add graph visualization generation
+        # Graph visualization generation (future feature)
         if self.config.output.generate_visualization:
-            # Placeholder for future graph generation
+            # Note: Graph visualization will be implemented in Phase 2
+            self.logger.info("Graph visualization requested but not yet implemented")
             pass
         
         return outputs

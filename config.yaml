@@ -6,6 +6,7 @@ llm:
   max_tokens: 4000
   temperature: 0.1
   api_key: null  # Set via environment variable
+  base_url: null  # For Ollama and other local providers (e.g., http://localhost:11434)
 
 processing:
   chunk_size: 2000

@@ -7,6 +7,8 @@ from abc import ABC, abstractmethod
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
 
+from .llm_provider import LLMProviderFactory, LLMProviderConfig, BaseLLMProvider
+
 
 @dataclass
 class BaseLLMAnalysisResult(ABC):
@@ -32,17 +34,15 @@ class BaseLLMAnalysisResult(ABC):
 class BaseLLMAnalyzer(ABC):
     """Abstract base class for language-specific LLM analyzers"""
     
-    def __init__(self, language: str, api_key: Optional[str] = None, model: str = "gpt-4"):
+    def __init__(self, language: str, provider_config: LLMProviderConfig):
         """Initialize base LLM analyzer"""
         self.language = language
-        self.api_key = api_key
-        self.model = model
-        self.client = self._initialize_client()
+        self.provider_config = provider_config
+        self.provider = LLMProviderFactory.create_provider(provider_config)
     
-    @abstractmethod
     def _initialize_client(self):
-        """Initialize the LLM client (OpenAI, Anthropic, etc.)"""
-        pass
+        """Initialize the LLM client (deprecated - use provider instead)"""
+        return self.provider.client
     
     @abstractmethod
     def analyze_section(self, code: str, section_name: str, section_type: str) -> BaseLLMAnalysisResult:
