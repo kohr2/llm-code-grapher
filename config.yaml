@@ -1,0 +1,37 @@
+# COBOL Code Grapher Configuration
+
+llm:
+  provider: "openai"  # openai, anthropic, ollama
+  model: "gpt-4"
+  max_tokens: 4000
+  temperature: 0.1
+  api_key: null  # Set via environment variable
+
+processing:
+  chunk_size: 2000
+  overlap: 200
+  max_retries: 3
+  parallel_sections: true
+  confidence_threshold: 0.7
+
+cobol:
+  section_patterns:
+    - "^\\s*[A-Z0-9-]+\\s+SECTION\\s*\\."
+    - "^\\s*[A-Z0-9-]+\\s+PARAGRAPH\\s*\\."
+  subsection_patterns:
+    - "^\\s*[A-Z0-9-]+\\s*\\."
+  data_patterns:
+    - "^\\s*[0-9]+\\s+[A-Z0-9-]+\\s+.*PIC\\s+"
+    - "^\\s*[0-9]+\\s+[A-Z0-9-]+\\s+.*REDEFINES\\s+"
+
+output:
+  format: "json"  # json, yaml, graphml
+  include_confidence: true
+  generate_visualization: true
+  output_dir: "./output"
+  filename_template: "{input_name}_analysis_{timestamp}"
+
+logging:
+  level: "INFO"
+  file: "./logs/cobol_grapher.log"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
