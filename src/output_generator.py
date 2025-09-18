@@ -1,8 +1,8 @@
 """
-Output Generator for COBOL Code Grapher
+Output Generator for LLM Code Grapher
 
 Handles generation of various output formats including JSON, text summaries,
-and graph visualizations.
+and graph visualizations. Language-agnostic output generation.
 """
 
 import json
@@ -63,7 +63,8 @@ class OutputGenerator:
         """Create human-readable text summary"""
         lines = []
         lines.append("=" * 80)
-        lines.append("COBOL CODE ANALYSIS SUMMARY")
+        language = analysis_result.get("language", "UNKNOWN")
+        lines.append(f"{language.upper()} CODE ANALYSIS SUMMARY")
         lines.append("=" * 80)
         lines.append("")
         

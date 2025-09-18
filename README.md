@@ -9,12 +9,15 @@ A Python tool that analyzes COBOL code structure using LLMs to create hierarchic
 - **Relationship Mapping**: Finds connections between sections
 - **Confidence Scoring**: Provides confidence levels for all extractions
 - **Multiple Output Formats**: JSON, text summaries, and visualizations
+- **Multiple LLM Providers**: Support for OpenAI and Ollama (local) providers
 
 ## Quick Start
 
 ### Prerequisites
 - Python 3.8+
-- OpenAI API key
+- One of the following:
+  - OpenAI API key (for OpenAI provider)
+  - Ollama installed locally (for Ollama provider)
 
 ### Installation
 ```bash
@@ -31,12 +34,48 @@ cp .env.example .env
 ```
 
 ### Usage
-```bash
-# Analyze a COBOL file
-python main.py analyze data/fixtures/vasu_fraud_management_cobol_reformatted.cbl
 
-# Get help
-python main.py --help
+#### Using OpenAI (default)
+```bash
+# Set your OpenAI API key
+export OPENAI_API_KEY="your-api-key-here"
+
+# Analyze a COBOL file
+python -m src.cli analyze data/fixtures/vasu_fraud_management_cobol_reformatted.cbl
+
+# Or explicitly specify OpenAI
+python -m src.cli analyze file.cbl --provider openai
+```
+
+#### Using Ollama (local)
+```bash
+# Start Ollama (if not already running)
+ollama serve
+
+# Pull a model (e.g., llama2)
+ollama pull llama2
+
+# Analyze with Ollama
+python -m src.cli analyze file.cbl --provider ollama --model llama2
+
+# Or use custom Ollama URL
+python -m src.cli analyze file.cbl --provider ollama --base-url http://localhost:11434
+```
+
+#### Configuration
+You can also configure the provider in `config.yaml`:
+```yaml
+llm:
+  provider: "ollama"  # or "openai"
+  model: "llama2"     # or "gpt-4"
+  base_url: "http://localhost:11434"  # for Ollama
+  api_key: null       # for OpenAI
+```
+
+#### Get help
+```bash
+python -m src.cli --help
+python -m src.cli analyze --help
 ```
 
 ## Project Structure

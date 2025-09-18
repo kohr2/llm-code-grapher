@@ -1,7 +1,8 @@
 """
-Utility functions for COBOL Code Grapher
+Utility functions for LLM Code Grapher
 
 Common utility functions used across the application.
+Language-agnostic utilities for code analysis.
 """
 
 import re
@@ -71,28 +72,48 @@ def extract_line_ranges(text: str, patterns: List[str]) -> List[Tuple[int, int, 
     return matches
 
 
-def is_comment_line(line: str) -> bool:
-    """Check if a line is a COBOL comment"""
+def is_comment_line(line: str, language: str = "generic") -> bool:
+    """Check if a line is a comment based on language"""
     stripped = line.strip()
-    return (stripped.startswith('*') or 
-            stripped.startswith('//') or 
-            stripped.startswith('/*'))
+    
+    if language.lower() == "cobol":
+        return stripped.startswith('*') or stripped.startswith('*>')
+    elif language.lower() == "java":
+        return stripped.startswith('//') or stripped.startswith('/*')
+    elif language.lower() == "python":
+        return stripped.startswith('#')
+    else:
+        # Generic comment detection
+        return stripped.startswith('#') or stripped.startswith('//') or stripped.startswith('*')
 
 
-def clean_cobol_line(line: str) -> str:
-    """Clean a COBOL line by removing comments and extra whitespace"""
-    # Remove comments
-    if '*' in line:
-        line = line[:line.index('*')]
+def clean_code_line(line: str, language: str = "generic") -> str:
+    """Clean a code line by removing comments and extra whitespace"""
+    # Remove comments based on language
+    if language.lower() == "cobol":
+        if '*' in line:
+            line = line[:line.index('*')]
+    elif language.lower() == "java":
+        if '//' in line:
+            line = line[:line.index('//')]
+    elif language.lower() == "python":
+        if '#' in line:
+            line = line[:line.index('#')]
+    else:
+        # Generic comment removal
+        for comment_char in ['#', '//', '*']:
+            if comment_char in line:
+                line = line[:line.index(comment_char)]
+                break
     
     # Remove trailing whitespace
     return line.rstrip()
 
 
-def calculate_complexity_score(section_code: str) -> float:
-    """Calculate a simple complexity score for a COBOL section"""
+def calculate_complexity_score(section_code: str, language: str = "generic") -> float:
+    """Calculate a simple complexity score for a code section"""
     lines = section_code.split('\n')
-    non_comment_lines = [line for line in lines if not is_comment_line(line)]
+    non_comment_lines = [line for line in lines if not is_comment_line(line, language)]
     
     if not non_comment_lines:
         return 0.0
@@ -135,24 +156,37 @@ def get_file_size_mb(file_path: str) -> float:
     return os.path.getsize(file_path) / (1024 * 1024)
 
 
-def validate_cobol_identifier(identifier: str) -> bool:
-    """Validate if a string is a valid COBOL identifier"""
+def validate_identifier(identifier: str, language: str = "generic") -> bool:
+    """Validate if a string is a valid identifier for the given language"""
     if not identifier:
         return False
     
-    # COBOL identifiers must start with a letter and contain only letters, numbers, and hyphens
-    pattern = r'^[A-Z][A-Z0-9-]*$'
-    return bool(re.match(pattern, identifier.upper()))
+    if language.lower() == "cobol":
+        # COBOL identifiers must start with a letter and contain only letters, numbers, and hyphens
+        pattern = r'^[A-Z][A-Z0-9-]*$'
+        return bool(re.match(pattern, identifier.upper()))
+    elif language.lower() == "java":
+        # Java identifiers must start with letter, underscore, or $, then letters, digits, underscore, or $
+        pattern = r'^[a-zA-Z_$][a-zA-Z0-9_$]*$'
+        return bool(re.match(pattern, identifier))
+    elif language.lower() == "python":
+        # Python identifiers must start with letter or underscore, then letters, digits, or underscore
+        pattern = r'^[a-zA-Z_][a-zA-Z0-9_]*$'
+        return bool(re.match(pattern, identifier))
+    else:
+        # Generic validation - alphanumeric with underscores and hyphens
+        pattern = r'^[a-zA-Z][a-zA-Z0-9_-]*$'
+        return bool(re.match(pattern, identifier))
 
 
-def extract_perform_targets(code: str) -> List[str]:
-    """Extract PERFORM statement targets from COBOL code"""
+def extract_function_calls(code: str, language: str = "generic") -> List[str]:
+    """Extract function/method calls from code based on language"""
     targets = []
     lines = code.split('\n')
     
     for line in lines:
-        if 'PERFORM' in line.upper():
-            # Simple extraction - look for words after PERFORM
+        if language.lower() == "cobol" and 'PERFORM' in line.upper():
+            # COBOL PERFORM statements
             words = line.upper().split()
             perform_index = -1
             for i, word in enumerate(words):
@@ -162,10 +196,25 @@ def extract_perform_targets(code: str) -> List[str]:
             
             if perform_index >= 0 and perform_index + 1 < len(words):
                 target = words[perform_index + 1]
-                # Clean up the target (remove punctuation)
                 target = re.sub(r'[^A-Z0-9-]', '', target)
-                if target and validate_cobol_identifier(target):
+                if target and validate_identifier(target, language):
                     targets.append(target)
+        
+        elif language.lower() == "java" and ('(' in line and ')' in line):
+            # Java method calls
+            pattern = r'(\w+)\s*\('
+            matches = re.findall(pattern, line)
+            for match in matches:
+                if validate_identifier(match, language):
+                    targets.append(match)
+        
+        elif language.lower() == "python" and ('(' in line and ')' in line):
+            # Python function calls
+            pattern = r'(\w+)\s*\('
+            matches = re.findall(pattern, line)
+            for match in matches:
+                if validate_identifier(match, language):
+                    targets.append(match)
     
     return list(set(targets))  # Remove duplicates
 
@@ -181,6 +230,30 @@ def create_analysis_metadata(processing_time: float,
         "ontology_validation": "PASSED",
         "timestamp": format_timestamp()
     }
+
+
+def detect_language_from_extension(file_extension: str) -> str:
+    """Detect programming language from file extension"""
+    extension_map = {
+        '.cbl': 'cobol',
+        '.cob': 'cobol',
+        '.java': 'java',
+        '.py': 'python',
+        '.js': 'javascript',
+        '.ts': 'typescript',
+        '.cpp': 'cpp',
+        '.c': 'c',
+        '.cs': 'csharp',
+        '.go': 'go',
+        '.rs': 'rust',
+        '.php': 'php',
+        '.rb': 'ruby',
+        '.swift': 'swift',
+        '.kt': 'kotlin',
+        '.scala': 'scala'
+    }
+    
+    return extension_map.get(file_extension.lower(), 'generic')
 
 
 def log_processing_step(step: str, details: str = "") -> None:

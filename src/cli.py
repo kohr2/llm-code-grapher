@@ -1,7 +1,8 @@
 """
-Command Line Interface for COBOL Code Grapher
+Command Line Interface for LLM Code Grapher
 
-Provides CLI functionality for analyzing COBOL code and generating outputs.
+Provides CLI functionality for analyzing code structure and generating outputs.
+Supports multiple programming languages through language-agnostic architecture.
 """
 
 import click
@@ -10,7 +11,7 @@ from pathlib import Path
 from typing import Optional
 
 from .config_manager import get_config, reload_config
-from .utils import read_file_safely, log_processing_step
+from .utils import read_file_safely, log_processing_step, detect_language_from_extension
 from .output_generator import generate_output
 
 
@@ -19,7 +20,7 @@ from .output_generator import generate_output
 @click.option('--verbose', '-v', is_flag=True, help='Enable verbose output')
 @click.pass_context
 def cli(ctx, config: Optional[str], verbose: bool):
-    """COBOL Code Grapher - Analyze COBOL code structure using LLMs"""
+    """LLM Code Grapher - Analyze code structure using LLMs"""
     ctx.ensure_object(dict)
     ctx.obj['verbose'] = verbose
     
@@ -36,6 +37,9 @@ def cli(ctx, config: Optional[str], verbose: bool):
 
 @cli.command()
 @click.argument('input_file', type=click.Path(exists=True))
+@click.option('--language', '-l', 
+              type=click.Choice(['cobol', 'java', 'python']), 
+              help='Programming language (auto-detected if not specified)')
 @click.option('--output-dir', '-o', help='Output directory for results')
 @click.option('--format', 'output_format', 
               type=click.Choice(['json', 'text', 'all']), 
@@ -48,31 +52,47 @@ def cli(ctx, config: Optional[str], verbose: bool):
 @click.option('--model', help='Model to use (overrides config)')
 @click.option('--base-url', help='Base URL for local providers like Ollama')
 @click.pass_context
-def analyze(ctx, input_file: str, output_dir: Optional[str], 
+def analyze(ctx, input_file: str, language: Optional[str], output_dir: Optional[str], 
            output_format: str, confidence_threshold: float,
            provider: Optional[str], model: Optional[str], base_url: Optional[str]):
-    """Analyze a COBOL file and generate structured output"""
+    """Analyze a code file and generate structured output"""
     
     verbose = ctx.obj.get('verbose', False)
     
     try:
-        log_processing_step("Starting COBOL analysis", f"File: {input_file}")
+        log_processing_step("Starting code analysis", f"File: {input_file}")
         
         # Read input file
         log_processing_step("Reading input file")
-        cobol_code = read_file_safely(input_file)
+        code_content = read_file_safely(input_file)
         
         if verbose:
-            click.echo(f"Read {len(cobol_code)} characters from {input_file}")
+            click.echo(f"Read {len(code_content)} characters from {input_file}")
         
-        # Perform COBOL analysis using the language framework
-        log_processing_step("Performing COBOL analysis")
+        # Detect language if not specified
+        if not language:
+            file_extension = Path(input_file).suffix.lower()
+            language = detect_language_from_extension(file_extension)
         
-        # Import COBOL components
-        from lang.cobol.parser.cobol_parser import COBOLParser
-        from lang.cobol.parser.llm_analyzer import COBOLAnalyzer
-        from lang.cobol.ontology.cobol_ontology import COBOLOntology
-        from lang.base.parser.llm_provider import LLMProviderConfig
+        if verbose:
+            click.echo(f"Using language: {language}")
+        
+        # Perform analysis using the language framework
+        log_processing_step(f"Performing {language.upper()} analysis")
+        
+        # Import language-specific components dynamically
+        try:
+            parser_module = __import__(f"lang.{language}.parser.{language}_parser", fromlist=[f"{language.upper()}Parser"])
+            analyzer_module = __import__(f"lang.{language}.parser.llm_analyzer", fromlist=[f"{language.upper()}Analyzer"])
+            ontology_module = __import__(f"lang.{language}.ontology.{language}_ontology", fromlist=[f"{language.upper()}Ontology"])
+        except ImportError as e:
+            click.echo(f"Error: Language '{language}' is not supported. {e}", err=True)
+            sys.exit(1)
+        
+        # Initialize components
+        ParserClass = getattr(parser_module, f"{language.upper()}Parser")
+        AnalyzerClass = getattr(analyzer_module, f"{language.upper()}Analyzer")
+        OntologyClass = getattr(ontology_module, f"{language.upper()}Ontology")
         
         # Get configuration and apply CLI overrides
         config = get_config()
@@ -85,24 +105,13 @@ def analyze(ctx, input_file: str, output_dir: Optional[str],
         if base_url:
             config.llm.base_url = base_url
         
-        # Create provider configuration
-        provider_config = LLMProviderConfig(
-            provider=config.llm.provider,
-            model=config.llm.model,
-            api_key=config.llm.api_key,
-            base_url=config.llm.base_url,
-            max_tokens=config.llm.max_tokens,
-            temperature=config.llm.temperature
-        )
+        parser = ParserClass()
+        analyzer = AnalyzerClass(config.llm)
+        ontology = OntologyClass()
         
-        # Initialize components
-        parser = COBOLParser()
-        analyzer = COBOLAnalyzer(provider_config)
-        ontology = COBOLOntology()
-        
-        # Parse the COBOL file
-        log_processing_step("Parsing COBOL structure")
-        sections = parser.parse_sections(cobol_code)
+        # Parse the code file
+        log_processing_step(f"Parsing {language.upper()} structure")
+        sections = parser.parse_sections(code_content)
         
         # Analyze with LLM
         log_processing_step("Analyzing with LLM")
@@ -113,12 +122,12 @@ def analyze(ctx, input_file: str, output_dir: Optional[str],
                 section.name, 
                 section.type
             )
-            section.business_logic = analysis.business_logic
-            section.confidence = analysis.confidence
+            section.business_logic = analysis.get('description', '')
+            section.confidence = analysis.get('confidence', 0.0)
             analyzed_sections.append(section)
         
         # Create ontology
-        log_processing_step("Creating COBOL ontology")
+        log_processing_step(f"Creating {language.upper()} ontology")
         program_ontology = ontology.create_program_ontology(
             program_name=Path(input_file).stem,
             sections=analyzed_sections
@@ -127,6 +136,7 @@ def analyze(ctx, input_file: str, output_dir: Optional[str],
         # Create analysis result from ontology
         analysis_result = {
             "program_name": program_ontology.program_name,
+            "language": language.upper(),
             "total_sections": len(program_ontology.sections),
             "total_subsections": len(program_ontology.subsections),
             "sections": [
@@ -142,45 +152,35 @@ def analyze(ctx, input_file: str, output_dir: Optional[str],
                 }
                 for section in program_ontology.sections
             ],
-            "relationships": [],
-            "ontology_metrics": {
-                "complexity_metrics": {
-                    "cyclomatic_complexity": 0.0,
-                    "maintainability_index": 0.0,
-                    "technical_debt_ratio": 0.0
-                },
-                "quality_indicators": {
-                    "code_coverage": "UNKNOWN",
-                    "documentation_quality": "UNKNOWN",
-                    "test_coverage": "UNKNOWN"
-                },
-                "maintenance_risks": [],
-                "modernization_potential": "UNKNOWN"
-            },
-            "analysis_metadata": {
-                "processing_time": "0.00s",
-                "llm_tokens_used": 0,
-                "confidence_threshold": confidence_threshold,
-                "ontology_validation": "PASSED"
-            }
+            "relationships": [
+                {
+                    "source": rel.source,
+                    "target": rel.target,
+                    "relationship_type": rel.relationship_type,
+                    "confidence": rel.confidence,
+                    "strength": rel.strength
+                }
+                for rel in program_ontology.relationships
+            ],
+            "ontology_metrics": program_ontology.complexity_metrics,
+            "quality_indicators": program_ontology.quality_indicators,
+            "maintenance_risks": program_ontology.maintenance_risks,
+            "modernization_potential": program_ontology.modernization_potential,
+            "confidence_threshold": confidence_threshold
         }
         
         # Generate outputs
         log_processing_step("Generating outputs")
-        outputs = generate_output(analysis_result, input_file, output_dir)
+        output_generator = generate_output(analysis_result, input_file, output_dir, output_format)
         
-        # Display results
-        click.echo("\n" + "="*60)
-        click.echo("ANALYSIS COMPLETE")
-        click.echo("="*60)
+        if verbose:
+            click.echo(f"Analysis complete. Generated {len(output_generator)} output files.")
         
-        for output_type, output_path in outputs.items():
-            click.echo(f"{output_type.upper()} output: {output_path}")
-        
-        click.echo(f"\nAnalysis completed successfully!")
+        click.echo("✅ Analysis completed successfully!")
         
     except Exception as e:
-        click.echo(f"Error during analysis: {e}", err=True)
+        log_processing_step(f"Error during analysis: {e}")
+        click.echo(f"❌ Analysis failed: {e}", err=True)
         if verbose:
             import traceback
             click.echo(traceback.format_exc(), err=True)
@@ -188,148 +188,76 @@ def analyze(ctx, input_file: str, output_dir: Optional[str],
 
 
 @cli.command()
-@click.option('--reload', is_flag=True, help='Reload configuration')
-def config(reload: bool):
-    """Show current configuration"""
-    
-    if reload:
-        config = reload_config()
-        click.echo("Configuration reloaded")
-    else:
-        config = get_config()
-    
-    click.echo("\nCurrent Configuration:")
-    click.echo("="*40)
-    
-    # LLM Configuration
-    click.echo(f"LLM Provider: {config.llm.provider}")
-    click.echo(f"LLM Model: {config.llm.model}")
-    click.echo(f"Max Tokens: {config.llm.max_tokens}")
-    click.echo(f"Temperature: {config.llm.temperature}")
-    click.echo(f"API Key: {'***' if config.llm.api_key else 'Not set'}")
-    
-    # Processing Configuration
-    click.echo(f"\nChunk Size: {config.processing.chunk_size}")
-    click.echo(f"Overlap: {config.processing.overlap}")
-    click.echo(f"Max Retries: {config.processing.max_retries}")
-    click.echo(f"Confidence Threshold: {config.processing.confidence_threshold}")
-    
-    # Output Configuration
-    click.echo(f"\nOutput Format: {config.output.format}")
-    click.echo(f"Output Directory: {config.output.output_dir}")
-    click.echo(f"Generate Visualization: {config.output.generate_visualization}")
-
-
-@cli.command()
-def validate():
-    """Validate configuration and environment"""
-    
-    click.echo("Validating configuration and environment...")
-    
-    # Check configuration
-    try:
-        config = get_config()
-        click.echo("✓ Configuration loaded successfully")
-    except Exception as e:
-        click.echo(f"✗ Configuration error: {e}")
-        return
-    
-    # Check LLM provider configuration
-    provider = config.llm.provider.lower()
-    if provider == "openai":
-        if config.llm.api_key:
-            click.echo("✓ OpenAI API key is set")
-        else:
-            click.echo("✗ OpenAI API key is not set")
-    elif provider == "ollama":
-        click.echo("✓ Using Ollama provider (local)")
-        if config.llm.base_url:
-            click.echo(f"  Base URL: {config.llm.base_url}")
-        else:
-            click.echo("  Using default Ollama URL: http://localhost:11434")
-    else:
-        click.echo(f"✗ Unknown provider: {provider}")
-    
-    # Check output directory
-    output_dir = Path(config.output.output_dir)
-    if output_dir.exists():
-        click.echo("✓ Output directory exists")
-    else:
-        try:
-            output_dir.mkdir(parents=True, exist_ok=True)
-            click.echo("✓ Output directory created")
-        except Exception as e:
-            click.echo(f"✗ Cannot create output directory: {e}")
-    
-    # Check required Python packages
-    required_packages = ['pydantic', 'yaml', 'click']
-    provider_packages = {
-        'openai': ['openai'],
-        'ollama': ['requests']
-    }
-    
-    # Add provider-specific packages
-    if provider in provider_packages:
-        required_packages.extend(provider_packages[provider])
-    
-    missing_packages = []
-    
-    for package in required_packages:
-        try:
-            __import__(package)
-            click.echo(f"✓ {package} is available")
-        except ImportError:
-            missing_packages.append(package)
-            click.echo(f"✗ {package} is not installed")
-    
-    if missing_packages:
-        click.echo(f"\nMissing packages: {', '.join(missing_packages)}")
-        click.echo("Run: pip install -r requirements.txt")
-    else:
-        click.echo("\n✓ All required packages are available")
-
-
-@cli.command()
 @click.argument('input_file', type=click.Path(exists=True))
-def preview(input_file: str):
-    """Preview COBOL file structure without full analysis"""
+@click.option('--language', '-l', 
+              type=click.Choice(['cobol', 'java', 'python']), 
+              help='Programming language (auto-detected if not specified)')
+@click.pass_context
+def preview(ctx, input_file: str, language: Optional[str]):
+    """Preview code file structure without full analysis"""
+    
+    verbose = ctx.obj.get('verbose', False)
     
     try:
-        log_processing_step("Previewing COBOL file", f"File: {input_file}")
+        log_processing_step("Previewing code file", f"File: {input_file}")
         
-        # Read file
-        cobol_code = read_file_safely(input_file)
-        lines = cobol_code.split('\n')
+        # Read input file
+        code_content = read_file_safely(input_file)
+        lines = code_content.split('\n')
         
-        click.echo(f"\nFile: {input_file}")
-        click.echo(f"Lines: {len(lines)}")
-        click.echo(f"Characters: {len(cobol_code)}")
+        # Detect language if not specified
+        if not language:
+            file_extension = Path(input_file).suffix.lower()
+            language = detect_language_from_extension(file_extension)
         
-        # Find potential sections
-        config = get_config()
-        section_patterns = config.cobol.section_patterns
+        click.echo(f"📁 File: {input_file}")
+        click.echo(f"🔤 Language: {language.upper()}")
+        click.echo(f"📏 Lines: {len(lines)}")
+        click.echo(f"📊 Characters: {len(code_content)}")
         
-        click.echo("\nPotential Sections Found:")
-        click.echo("-" * 40)
+        # Show basic file structure
+        click.echo(f"\n📋 File Structure Preview:")
+        click.echo(f"   Language: {language.upper()}")
+        click.echo(f"   Lines: {len(lines)}")
+        click.echo(f"   Characters: {len(code_content)}")
         
-        for i, line in enumerate(lines, 1):
-            for pattern in section_patterns:
-                import re
-                if re.search(pattern, line, re.IGNORECASE):
-                    click.echo(f"Line {i:4d}: {line.strip()}")
-                    break
+        if verbose:
+            # Show first few lines
+            click.echo(f"\n📄 First 10 lines:")
+            for i, line in enumerate(lines[:10], 1):
+                click.echo(f"   {i:3d}: {line}")
+            
+            if len(lines) > 10:
+                click.echo(f"   ... and {len(lines) - 10} more lines")
         
-        click.echo(f"\nPreview completed for {input_file}")
+        click.echo("✅ Preview completed successfully!")
         
     except Exception as e:
-        click.echo(f"Error during preview: {e}", err=True)
+        click.echo(f"❌ Preview failed: {e}", err=True)
         sys.exit(1)
 
 
+@cli.command()
+def list_languages():
+    """List supported programming languages"""
+    click.echo("🔤 Supported Programming Languages:")
+    click.echo("   • COBOL (.cbl, .cob)")
+    click.echo("   • Java (.java)")
+    click.echo("   • Python (.py)")
+    click.echo("\n💡 Language is auto-detected from file extension, or use --language option")
+
+
+@cli.command()
+def version():
+    """Show version information"""
+    click.echo("LLM Code Grapher v1.0.0")
+    click.echo("Language-agnostic code analysis using LLMs")
+
+
 def main():
-    """Main entry point for CLI"""
+    """Main entry point for the CLI"""
     cli()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

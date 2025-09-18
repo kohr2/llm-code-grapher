@@ -30,19 +30,12 @@ class ProcessingConfig(BaseModel):
     confidence_threshold: float = 0.7
 
 
-class COBOLConfig(BaseModel):
-    """COBOL-specific configuration settings"""
-    section_patterns: list[str] = Field(default_factory=lambda: [
-        r"^\s*[A-Z0-9-]+\s+SECTION\s*\.",
-        r"^\s*[A-Z0-9-]+\s+PARAGRAPH\s*\."
-    ])
-    subsection_patterns: list[str] = Field(default_factory=lambda: [
-        r"^\s*[A-Z0-9-]+\s*\."
-    ])
-    data_patterns: list[str] = Field(default_factory=lambda: [
-        r"^\s*[0-9]+\s+[A-Z0-9-]+\s+.*PIC\s+",
-        r"^\s*[0-9]+\s+[A-Z0-9-]+\s+.*REDEFINES\s+"
-    ])
+class LanguageConfig(BaseModel):
+    """Language-specific configuration settings"""
+    # This will be populated dynamically based on the language being analyzed
+    section_patterns: list[str] = Field(default_factory=list)
+    subsection_patterns: list[str] = Field(default_factory=list)
+    data_patterns: list[str] = Field(default_factory=list)
 
 
 class OutputConfig(BaseModel):
@@ -57,7 +50,7 @@ class OutputConfig(BaseModel):
 class LoggingConfig(BaseModel):
     """Logging configuration settings"""
     level: str = "INFO"
-    file: str = "./logs/cobol_grapher.log"
+    file: str = "./logs/llm_code_grapher.log"
     format: str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 
 
@@ -65,7 +58,7 @@ class Config(BaseModel):
     """Main configuration class"""
     llm: LLMConfig = Field(default_factory=LLMConfig)
     processing: ProcessingConfig = Field(default_factory=ProcessingConfig)
-    cobol: COBOLConfig = Field(default_factory=COBOLConfig)
+    language: LanguageConfig = Field(default_factory=LanguageConfig)
     output: OutputConfig = Field(default_factory=OutputConfig)
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
 
