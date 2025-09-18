@@ -1,0 +1,184 @@
+{
+  "program_name": "SAMPLE-PROGRAM",
+  "total_sections": 6,
+  "total_subsections": 8,
+  "sections": [
+    {
+      "name": "IDENTIFICATION DIVISION",
+      "type": "IDENTIFICATION",
+      "line_range": [1, 4],
+      "line_count": 4,
+      "business_logic": "Program identification and metadata",
+      "confidence": 0.95
+    },
+    {
+      "name": "ENVIRONMENT DIVISION",
+      "type": "ENVIRONMENT",
+      "line_range": [7, 10],
+      "line_count": 4,
+      "business_logic": "Environment configuration and computer specifications",
+      "confidence": 0.90
+    },
+    {
+      "name": "INPUT-OUTPUT SECTION",
+      "type": "INPUT_OUTPUT",
+      "line_range": [12, 21],
+      "line_count": 10,
+      "business_logic": "File control definitions for input and output files",
+      "confidence": 0.88
+    },
+    {
+      "name": "DATA DIVISION",
+      "type": "DATA",
+      "line_range": [42, 61],
+      "line_count": 20,
+      "business_logic": "Data structure definitions for files and working storage",
+      "confidence": 0.92
+    },
+    {
+      "name": "WORKING-STORAGE SECTION",
+      "type": "WORKING_STORAGE",
+      "line_range": [133, 145],
+      "line_count": 13,
+      "business_logic": "Working storage variables and control flags",
+      "confidence": 0.85
+    },
+    {
+      "name": "PROCEDURE DIVISION",
+      "type": "PROCEDURE",
+      "line_range": [214, 295],
+      "line_count": 82,
+      "business_logic": "Main program logic and processing routines",
+      "confidence": 0.90
+    }
+  ],
+  "subsections": [
+    {
+      "name": "0000-MAIN-PROCESS",
+      "parent_section": "0000-MAIN-CONTROL SECTION",
+      "line_range": [217, 221],
+      "line_count": 5,
+      "business_logic": "Main program control flow and execution sequence",
+      "confidence": 0.92
+    },
+    {
+      "name": "1000-INIT-START",
+      "parent_section": "1000-INITIALIZE-PROGRAM SECTION",
+      "line_range": [224, 227],
+      "line_count": 4,
+      "business_logic": "Program initialization and setup procedures",
+      "confidence": 0.88
+    },
+    {
+      "name": "1100-OPEN-FILES",
+      "parent_section": "1000-INITIALIZE-PROGRAM SECTION",
+      "line_range": [229, 240],
+      "line_count": 12,
+      "business_logic": "File opening operations with error handling",
+      "confidence": 0.90
+    },
+    {
+      "name": "1200-INITIALIZE-VARIABLES",
+      "parent_section": "1000-INITIALIZE-PROGRAM SECTION",
+      "line_range": [242, 245],
+      "line_count": 4,
+      "business_logic": "Variable initialization and setup",
+      "confidence": 0.85
+    },
+    {
+      "name": "2000-PROCESS-START",
+      "parent_section": "2000-PROCESS-RECORDS SECTION",
+      "line_range": [248, 255],
+      "line_count": 8,
+      "business_logic": "Main record processing loop and control",
+      "confidence": 0.90
+    },
+    {
+      "name": "2100-READ-RECORD",
+      "parent_section": "2000-PROCESS-RECORDS SECTION",
+      "line_range": [257, 263],
+      "line_count": 7,
+      "business_logic": "Record reading operations with progress tracking",
+      "confidence": 0.88
+    },
+    {
+      "name": "2200-PROCESS-RECORD",
+      "parent_section": "2000-PROCESS-RECORDS SECTION",
+      "line_range": [265, 274],
+      "line_count": 10,
+      "business_logic": "Individual record processing and data transformation",
+      "confidence": 0.87
+    },
+    {
+      "name": "9000-FINALIZE-START",
+      "parent_section": "9000-FINALIZE-PROGRAM SECTION",
+      "line_range": [277, 280],
+      "line_count": 4,
+      "business_logic": "Program finalization and cleanup procedures",
+      "confidence": 0.89
+    }
+  ],
+  "relationships": [
+    {
+      "source": "0000-MAIN-PROCESS",
+      "target": "1000-INIT-START",
+      "relationship_type": "CALLS",
+      "confidence": 0.95
+    },
+    {
+      "source": "0000-MAIN-PROCESS",
+      "target": "2000-PROCESS-START",
+      "relationship_type": "CALLS",
+      "confidence": 0.95
+    },
+    {
+      "source": "0000-MAIN-PROCESS",
+      "target": "9000-FINALIZE-START",
+      "relationship_type": "CALLS",
+      "confidence": 0.95
+    },
+    {
+      "source": "1000-INIT-START",
+      "target": "1100-OPEN-FILES",
+      "relationship_type": "CALLS",
+      "confidence": 0.90
+    },
+    {
+      "source": "1000-INIT-START",
+      "target": "1200-INITIALIZE-VARIABLES",
+      "relationship_type": "CALLS",
+      "confidence": 0.90
+    },
+    {
+      "source": "2000-PROCESS-START",
+      "target": "2100-READ-RECORD",
+      "relationship_type": "CALLS",
+      "confidence": 0.92
+    },
+    {
+      "source": "2000-PROCESS-START",
+      "target": "2200-PROCESS-RECORD",
+      "relationship_type": "CALLS",
+      "confidence": 0.92
+    },
+    {
+      "source": "2200-PROCESS-RECORD",
+      "target": "INPUT-RECORD",
+      "relationship_type": "USES",
+      "confidence": 0.88
+    },
+    {
+      "source": "2200-PROCESS-RECORD",
+      "target": "OUTPUT-RECORD",
+      "relationship_type": "MODIFIES",
+      "confidence": 0.88
+    }
+  ],
+  "analysis_metadata": {
+    "processing_time": 0.5,
+    "llm_tokens_used": 0,
+    "confidence_threshold": 0.7,
+    "parser_version": "1.0.0",
+    "analysis_timestamp": "2025-01-01T00:00:00Z"
+  }
+}

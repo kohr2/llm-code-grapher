@@ -19,16 +19,18 @@
 - **Business logic extraction** for each section/subsection
 - **Confidence scoring** for all extractions
 
-### 3. Simple Data Model
+### 3. Simple Data Model with COBOL Ontology
 ```python
 @dataclass
 class COBOLSection:
     name: str
-    type: str
+    type: str  # IDENTIFICATION, ENVIRONMENT, DATA, PROCEDURE, etc.
     line_range: tuple[int, int]
     line_count: int
     business_logic: str
     confidence: float
+    complexity_score: float = 0.0
+    risk_level: str = "LOW"  # LOW, MEDIUM, HIGH, CRITICAL
 
 @dataclass
 class COBOLSubsection:
@@ -38,9 +40,76 @@ class COBOLSubsection:
     line_count: int
     business_logic: str
     confidence: float
+    complexity_score: float = 0.0
+    risk_level: str = "LOW"
+
+@dataclass
+class COBOLRelationship:
+    source: str
+    target: str
+    relationship_type: str  # CALLS, USES, MODIFIES, DEPENDS_ON, DATA_FLOW
+    confidence: float
+    strength: float = 1.0  # Relationship strength (0.0-1.0)
+
+@dataclass
+class COBOLProgramOntology:
+    """COBOL Program Ontology - Structured representation of COBOL programs"""
+    program_name: str
+    divisions: List[COBOLSection]
+    sections: List[COBOLSection]
+    subsections: List[COBOLSubsection]
+    relationships: List[COBOLRelationship]
+    data_items: List[COBOLDataItem]
+    business_rules: List[COBOLBusinessRule]
+    
+    # Ontology Properties
+    complexity_metrics: Dict[str, float]
+    quality_indicators: Dict[str, str]
+    maintenance_risks: List[str]
+    modernization_potential: str  # LOW, MEDIUM, HIGH
+
+@dataclass
+class COBOLDataItem:
+    name: str
+    type: str  # PIC, REDEFINES, FILLER, etc.
+    level: int
+    parent_item: Optional[str]
+    business_meaning: str
+    usage_patterns: List[str]
+
+@dataclass
+class COBOLBusinessRule:
+    rule_id: str
+    description: str
+    section: str
+    confidence: float
+    risk_impact: str
+    modernization_priority: str
 ```
 
-### 4. Basic Output
+### 4. COBOL Ontology Schema
+The complete ontology definition is stored in `ontology/cobol/cobol_program_ontology.yaml`.
+
+**Key Concepts:**
+- **Program**: Complete COBOL program with metadata and quality metrics
+- **Division**: Main COBOL divisions (IDENTIFICATION, ENVIRONMENT, DATA, PROCEDURE)
+- **Section**: Sections within divisions (FILE, WORKING-STORAGE, PROCEDURE_SECTION)
+- **Subsection**: Paragraphs within sections
+- **DataItem**: Data variables and structures with business meanings
+- **BusinessRule**: Business logic and rules with risk assessments
+- **Relationship**: Connections between components (CALLS, USES, MODIFIES, etc.)
+
+**Quality Assessment:**
+- **Complexity Metrics**: Cyclomatic complexity, maintainability index, technical debt
+- **Risk Levels**: LOW, MEDIUM, HIGH, CRITICAL
+- **Quality Indicators**: Code coverage, documentation quality, test coverage
+- **Modernization Potential**: LOW, MEDIUM, HIGH
+
+See `ontology/cobol/README.md` for detailed documentation and examples.
+
+**Extensible Design**: The ontology structure is designed to support multiple programming languages and domains. Future ontologies can be added as separate subdirectories (e.g., `ontology/java/`, `ontology/python/`, `ontology/legacy/`) while maintaining the same validation framework.
+
+### 5. Basic Output
 - **JSON output** with all extracted data
 - **Simple text summary** of findings
 - **Confidence indicators** for manual review
@@ -150,12 +219,13 @@ def find_relationships(sections: List[COBOLSection]) -> List[Relationship]:
 ```
 
 ### Step 6: Output Generation (Day 6)
-**Focus: Clear, actionable output**
+**Focus: Clear, actionable output with ontology structure**
 
 ```python
-# Simple JSON output with confidence indicators
+# Ontology-based JSON output with confidence indicators
 {
     "program_name": "fraud_management",
+    "ontology_version": "1.0",
     "total_sections": 5,
     "total_subsections": 23,
     "sections": [
@@ -166,14 +236,43 @@ def find_relationships(sections: List[COBOLSection]) -> List[Relationship]:
             "line_count": 76,
             "business_logic": "Main processing loop that handles transaction validation",
             "confidence": 0.92,
+            "complexity_score": 0.75,
+            "risk_level": "MEDIUM",
             "subsections": [...]
         }
     ],
-    "relationships": [...],
+    "relationships": [
+        {
+            "source": "MAIN-PROCESSING",
+            "target": "INITIALIZE-PROGRAM",
+            "relationship_type": "CALLS",
+            "confidence": 0.95,
+            "strength": 1.0
+        }
+    ],
+    "ontology_metrics": {
+        "complexity_metrics": {
+            "cyclomatic_complexity": 12.5,
+            "maintainability_index": 0.68,
+            "technical_debt_ratio": 0.23
+        },
+        "quality_indicators": {
+            "code_coverage": "HIGH",
+            "documentation_quality": "MEDIUM",
+            "test_coverage": "LOW"
+        },
+        "maintenance_risks": [
+            "High coupling between sections",
+            "Complex business logic in single section",
+            "Missing error handling"
+        ],
+        "modernization_potential": "MEDIUM"
+    },
     "analysis_metadata": {
         "processing_time": "2.3s",
         "llm_tokens_used": 15420,
-        "confidence_threshold": 0.7
+        "confidence_threshold": 0.7,
+        "ontology_validation": "PASSED"
     }
 }
 ```
@@ -235,6 +334,8 @@ def find_relationships(sections: List[COBOLSection]) -> List[Relationship]:
 - ✅ Manual review flags for uncertain cases
 - ✅ Consistent output format
 - ✅ Comprehensive logging
+- ✅ Ontology validation and consistency
+- ✅ Semantic relationship accuracy
 
 ## Directory Structure
 
@@ -297,7 +398,12 @@ data/
 docs/                                  # Documentation
 ├── setup.md                          # Setup instructions
 ├── usage.md                          # Usage examples
-└── api.md                            # API documentation
+├── api.md                            # API documentation
+├── ontology/                         # Domain-specific Ontologies
+│   └── cobol/                        # COBOL Program Ontology
+│       ├── cobol_program_ontology.yaml   # Main ontology definition
+│       ├── README.md                     # Ontology documentation
+│       └── cobol_ontology_validator.py   # Ontology validation utility
 
 scripts/                               # Utility scripts
 ├── setup_env.sh                      # Environment setup
@@ -354,6 +460,11 @@ llm-code-grapher/
 │   ├── setup.md
 │   ├── usage.md
 │   └── api.md
+├── ontology/
+│   └── cobol/
+│       ├── cobol_program_ontology.yaml
+│       ├── README.md
+│       └── cobol_ontology_validator.py
 ├── scripts/
 │   ├── setup_env.sh
 │   ├── run_tests.sh
