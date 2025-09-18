@@ -42,9 +42,15 @@ def cli(ctx, config: Optional[str], verbose: bool):
               default='all', help='Output format')
 @click.option('--confidence-threshold', type=float, default=0.7,
               help='Minimum confidence threshold for analysis')
+@click.option('--provider', 
+              type=click.Choice(['openai', 'ollama']), 
+              help='LLM provider to use (overrides config)')
+@click.option('--model', help='Model to use (overrides config)')
+@click.option('--base-url', help='Base URL for local providers like Ollama')
 @click.pass_context
 def analyze(ctx, input_file: str, output_dir: Optional[str], 
-           output_format: str, confidence_threshold: float):
+           output_format: str, confidence_threshold: float,
+           provider: Optional[str], model: Optional[str], base_url: Optional[str]):
     """Analyze a COBOL file and generate structured output"""
     
     verbose = ctx.obj.get('verbose', False)
@@ -66,10 +72,32 @@ def analyze(ctx, input_file: str, output_dir: Optional[str],
         from lang.cobol.parser.cobol_parser import COBOLParser
         from lang.cobol.parser.llm_analyzer import COBOLAnalyzer
         from lang.cobol.ontology.cobol_ontology import COBOLOntology
+        from lang.base.parser.llm_provider import LLMProviderConfig
+        
+        # Get configuration and apply CLI overrides
+        config = get_config()
+        
+        # Override config with CLI arguments
+        if provider:
+            config.llm.provider = provider
+        if model:
+            config.llm.model = model
+        if base_url:
+            config.llm.base_url = base_url
+        
+        # Create provider configuration
+        provider_config = LLMProviderConfig(
+            provider=config.llm.provider,
+            model=config.llm.model,
+            api_key=config.llm.api_key,
+            base_url=config.llm.base_url,
+            max_tokens=config.llm.max_tokens,
+            temperature=config.llm.temperature
+        )
         
         # Initialize components
         parser = COBOLParser()
-        analyzer = COBOLAnalyzer()
+        analyzer = COBOLAnalyzer(provider_config)
         ontology = COBOLOntology()
         
         # Parse the COBOL file
