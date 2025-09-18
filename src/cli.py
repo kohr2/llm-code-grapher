@@ -262,7 +262,16 @@ def validate():
             click.echo(f"✗ Cannot create output directory: {e}")
     
     # Check required Python packages
-    required_packages = ['openai', 'pydantic', 'yaml', 'click']
+    required_packages = ['pydantic', 'yaml', 'click']
+    provider_packages = {
+        'openai': ['openai'],
+        'ollama': ['requests']
+    }
+    
+    # Add provider-specific packages
+    if provider in provider_packages:
+        required_packages.extend(provider_packages[provider])
+    
     missing_packages = []
     
     for package in required_packages:
