@@ -69,6 +69,7 @@ class ConfigManager:
     def __init__(self, config_path: Optional[str] = None):
         self.config_path = config_path or "config.yaml"
         self._config: Optional[Config] = None
+        self.config: Optional[Dict[str, Any]] = None
     
     def load_config(self) -> Config:
         """Load configuration from file and environment variables"""
@@ -90,15 +91,15 @@ class ConfigManager:
         config_path = Path(self.config_path)
         
         if not config_path.exists():
-            print(f"Warning: Config file {self.config_path} not found, using defaults")
-            return {}
+            raise FileNotFoundError(f"Config file not found: {self.config_path}")
         
         try:
             with open(config_path, 'r', encoding='utf-8') as f:
                 return yaml.safe_load(f) or {}
+        except yaml.YAMLError as e:
+            raise yaml.YAMLError(f"Invalid YAML in config file: {e}")
         except Exception as e:
-            print(f"Error loading config file: {e}")
-            return {}
+            raise Exception(f"Error loading config file: {e}")
     
     def _apply_env_overrides(self, config_data: Dict[str, Any]) -> Dict[str, Any]:
         """Apply environment variable overrides to config"""
@@ -146,6 +147,109 @@ class ConfigManager:
         """Reload configuration from file"""
         self._config = None
         return self.load_config()
+    
+    def validate_config(self, config: Dict[str, Any]) -> None:
+        """Validate configuration and raise ValueError for invalid values"""
+        # Check required sections
+        required_sections = ['llm', 'processing', 'output']
+        missing_sections = [section for section in required_sections if section not in config]
+        if missing_sections:
+            raise ValueError(f"Missing required configuration sections: {', '.join(missing_sections)}")
+        
+        # Validate LLM configuration
+        if 'llm' in config:
+            self._validate_llm_config(config['llm'])
+        
+        # Validate processing configuration
+        if 'processing' in config:
+            self._validate_processing_config(config['processing'])
+        
+        # Validate output configuration
+        if 'output' in config:
+            self._validate_output_config(config['output'])
+    
+    def _validate_llm_config(self, llm_config: Dict[str, Any]) -> None:
+        """Validate LLM configuration"""
+        valid_providers = ['openai', 'anthropic', 'ollama']
+        if 'provider' in llm_config:
+            if llm_config['provider'] not in valid_providers:
+                raise ValueError(f"Invalid LLM provider: {llm_config['provider']}")
+        
+        # Validate required fields
+        required_fields = ['provider', 'model', 'max_tokens', 'temperature']
+        for field in required_fields:
+            if field not in llm_config:
+                raise ValueError(f"Missing required field in LLM config: {field}")
+        
+        # Validate types
+        if 'max_tokens' in llm_config:
+            if not isinstance(llm_config['max_tokens'], int):
+                raise ValueError("max_tokens must be an integer")
+            if llm_config['max_tokens'] <= 0:
+                raise ValueError("max_tokens must be positive")
+        
+        if 'temperature' in llm_config:
+            if not isinstance(llm_config['temperature'], (int, float)):
+                raise ValueError("temperature must be a number")
+            if not 0 <= llm_config['temperature'] <= 2:
+                raise ValueError("temperature must be between 0 and 2")
+    
+    def _validate_processing_config(self, processing_config: Dict[str, Any]) -> None:
+        """Validate processing configuration"""
+        # Validate required fields
+        required_fields = ['chunk_size', 'overlap', 'max_retries', 'confidence_threshold']
+        for field in required_fields:
+            if field not in processing_config:
+                raise ValueError(f"Missing required field in processing config: {field}")
+        
+        # Validate chunk_size
+        if 'chunk_size' in processing_config:
+            if not isinstance(processing_config['chunk_size'], int):
+                raise ValueError("chunk_size must be an integer")
+            if processing_config['chunk_size'] <= 0:
+                raise ValueError("Chunk size must be positive")
+        
+        # Validate overlap
+        if 'overlap' in processing_config:
+            if not isinstance(processing_config['overlap'], int):
+                raise ValueError("overlap must be an integer")
+            if processing_config['overlap'] < 0:
+                raise ValueError("Overlap must be non-negative")
+            if 'chunk_size' in processing_config and processing_config['overlap'] >= processing_config['chunk_size']:
+                raise ValueError("Overlap must be less than chunk size")
+        
+        # Validate confidence_threshold
+        if 'confidence_threshold' in processing_config:
+            if not isinstance(processing_config['confidence_threshold'], (int, float)):
+                raise ValueError("confidence_threshold must be a number")
+            if not 0 <= processing_config['confidence_threshold'] <= 1:
+                raise ValueError("Confidence threshold must be between 0 and 1")
+    
+    def _validate_output_config(self, output_config: Dict[str, Any]) -> None:
+        """Validate output configuration"""
+        # Validate required fields
+        required_fields = ['format', 'include_confidence', 'generate_visualization']
+        for field in required_fields:
+            if field not in output_config:
+                raise ValueError(f"Missing required field in output config: {field}")
+        
+        # Validate output format
+        if 'format' in output_config:
+            valid_formats = ['json', 'text', 'yaml', 'all']
+            if output_config['format'] not in valid_formats:
+                raise ValueError(f"Invalid output format: {output_config['format']}")
+    
+    def validate(self) -> None:
+        """Validate the current configuration"""
+        if self.config is not None:
+            # Use the manually set config
+            self.validate_config(self.config)
+        else:
+            # Use the loaded config
+            if self._config is None:
+                self.load_config()
+            config_dict = self._config.model_dump()
+            self.validate_config(config_dict)
 
 
 # Global config manager instance
@@ -160,3 +264,21 @@ def get_config() -> Config:
 def reload_config() -> Config:
     """Reload the global configuration"""
     return config_manager.reload_config()
+
+
+def validate_config(config: Dict[str, Any]) -> None:
+    """Validate a configuration dictionary"""
+    config_manager.validate_config(config)
+
+
+def load_config(config_path: Optional[str] = None) -> Config:
+    """Load configuration from file"""
+    if config_path:
+        manager = ConfigManager(config_path)
+        return manager.load_config()
+    return config_manager.load_config()
+
+
+def get_default_config() -> Dict[str, Any]:
+    """Get default configuration as dictionary"""
+    return Config().model_dump()

@@ -1,4 +1,4 @@
-# COBOL Code Grapher Configuration
+# LLM Code Grapher Configuration
 
 llm:
   provider: "openai"  # openai, anthropic, ollama
@@ -15,16 +15,12 @@ processing:
   parallel_sections: true
   confidence_threshold: 0.7
 
-cobol:
-  section_patterns:
-    - "^\\d+\\s+[A-Z0-9-]+\\s+DIVISION\\s*\\."
-    - "^\\d+\\s+[A-Z0-9-]+\\s+SECTION\\s*\\."
-    - "^\\d+\\s+[A-Z0-9-]+\\s+PARAGRAPH\\s*\\."
-  subsection_patterns:
-    - "^\\d+\\s+[A-Z0-9-]+\\s*\\."
-  data_patterns:
-    - "^\\d+\\s+[0-9]+\\s+[A-Z0-9-]+\\s+.*PIC\\s+"
-    - "^\\d+\\s+[0-9]+\\s+[A-Z0-9-]+\\s+.*REDEFINES\\s+"
+language:
+  # Language-specific patterns will be loaded dynamically based on the language being analyzed
+  # This section is populated at runtime by the language-specific modules
+  section_patterns: []
+  subsection_patterns: []
+  data_patterns: []
 
 output:
   format: "json"  # json, yaml, graphml
@@ -35,5 +31,5 @@ output:
 
 logging:
   level: "INFO"
-  file: "./logs/cobol_grapher.log"
+  file: "./logs/llm_code_grapher.log"
   format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"

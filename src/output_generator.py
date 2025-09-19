@@ -12,16 +12,25 @@ from pathlib import Path
 from typing import Dict, Any, List, Optional
 from dataclasses import asdict
 
-from .config_manager import get_config
+from config_manager import get_config
 
 
 class OutputGenerator:
     """Generates various output formats for COBOL analysis results"""
     
-    def __init__(self, output_dir: Optional[str] = None):
+    def __init__(self, output_format: Optional[str] = None, output_dir: Optional[str] = None):
         self.config = get_config()
         self.output_dir = Path(output_dir or self.config.output.output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Validate output format if provided
+        if output_format is not None:
+            valid_formats = ['json', 'text', 'yaml', 'all']
+            if output_format not in valid_formats:
+                raise ValueError(f"Invalid output format: {output_format}")
+            self.output_format = output_format
+        else:
+            self.output_format = self.config.output.format
     
     def generate_json_output(self, analysis_result: Dict[str, Any], 
                            input_filename: str) -> str:
@@ -35,8 +44,35 @@ class OutputGenerator:
         output_path = self.output_dir / "json" / filename
         output_path.parent.mkdir(parents=True, exist_ok=True)
         
-        with open(output_path, 'w', encoding='utf-8') as f:
-            json.dump(analysis_result, f, indent=2, ensure_ascii=False)
+        try:
+            with open(output_path, 'w', encoding='utf-8') as f:
+                json.dump(analysis_result, f, indent=2, ensure_ascii=False)
+        except PermissionError as e:
+            raise PermissionError(f"Cannot create output file: {e}")
+        except Exception as e:
+            raise Exception(f"Error generating JSON output: {e}")
+        
+        return str(output_path)
+    
+    def generate_yaml_output(self, analysis_result: Dict[str, Any], 
+                           input_filename: str) -> str:
+        """Generate YAML output file"""
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = self.config.output.filename_template.format(
+            input_name=Path(input_filename).stem,
+            timestamp=timestamp
+        ) + ".yaml"
+        
+        output_path = self.output_dir / "yaml" / filename
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        try:
+            with open(output_path, 'w', encoding='utf-8') as f:
+                yaml.dump(analysis_result, f, default_flow_style=False, allow_unicode=True)
+        except PermissionError as e:
+            raise PermissionError(f"Cannot create output file: {e}")
+        except Exception as e:
+            raise Exception(f"Error generating YAML output: {e}")
         
         return str(output_path)
     
@@ -162,6 +198,27 @@ class OutputGenerator:
             pass
         
         return outputs
+
+
+def generate_json_output(analysis_result: Dict[str, Any], 
+                        output_path: str) -> str:
+    """Convenience function to generate JSON output"""
+    generator = OutputGenerator()
+    return generator.generate_json_output(analysis_result, Path(output_path).stem)
+
+
+def generate_text_output(analysis_result: Dict[str, Any], 
+                        output_path: str) -> str:
+    """Convenience function to generate text output"""
+    generator = OutputGenerator()
+    return generator.generate_text_summary(analysis_result, Path(output_path).stem)
+
+
+def generate_yaml_output(analysis_result: Dict[str, Any], 
+                        output_path: str) -> str:
+    """Convenience function to generate YAML output"""
+    generator = OutputGenerator()
+    return generator.generate_yaml_output(analysis_result, Path(output_path).stem)
 
 
 def generate_output(analysis_result: Dict[str, Any], 
