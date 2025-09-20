@@ -339,3 +339,190 @@ class PerformanceMonitor:
 ## Conclusion
 
 Significant progress has been made in implementing the Phase 1 MVP. The core functionality is working, and most validation issues have been resolved. The remaining failures are primarily due to complex test mocking requirements and architectural compliance issues that would require major refactoring. The system is functional and ready for basic usage, with technical debt items identified for future phases.
+
+## Detailed Design Notes (Continuation)
+
+### Task 1.5: Accuracy Validation Module — Design Details
+
+**Purpose**: Provide deterministic metrics to compare predicted analysis output to ground truth, enabling test assertions and continuous accuracy tracking.
+
+**Public API (proposed)**:
+```python
+class AccuracyValidator:
+    def __init__(self, ground_truth_path: Optional[str] = None, tolerance: float = 0.0):
+        ...
+
+    def validate_sections(self, predicted: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Compare predicted sections to ground truth sections and return metrics."""
+
+    def validate_symbols(self, predicted: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Compare predicted symbols (e.g., paragraphs/procedures) to ground truth."""
+
+    def summarize(self) -> Dict[str, Any]:
+        """Return a consolidated summary across evaluated categories."""
+```
+
+**Ground Truth JSON Schema (v1, minimal)**:
+```json
+{
+  "version": 1,
+  "source_file": "string",
+  "sections": [
+    {
+      "name": "string",
+      "type": "string",
+      "span": { "start_line": 1, "end_line": 1 }
+    }
+  ],
+  "symbols": [
+    {
+      "name": "string",
+      "kind": "string",
+      "span": { "start_line": 1, "end_line": 1 }
+    }
+  ]
+}
+```
+
+**Matching Strategy**:
+- Exact name match (case-insensitive) and span overlap with optional `tolerance` on line boundaries
+- Best-match assignment via greedy IoU (intersection-over-union) on line spans when names collide
+
+**Metrics**:
+- Precision, Recall, F1 for each category (`sections`, `symbols`)
+- Span IoU average for correctly matched entities
+- Per-class breakdown (by `type`/`kind`) when available
+
+**Example Usage**:
+```python
+validator = AccuracyValidator(ground_truth_path="tests/data/gt/sample1.json", tolerance=1)
+section_metrics = validator.validate_sections(predicted_sections)
+symbol_metrics = validator.validate_symbols(predicted_symbols)
+summary = validator.summarize()
+```
+
+**Test Hooks**:
+- Deterministic comparisons (no randomness)
+- Small fixtures under `tests/data/gt/`
+- Assert thresholds in tests (e.g., section_f1 >= 0.8)
+
+### Task 1.6: Utility Functions Error Handling — Design Details
+
+Extend `src/utils.py` with safe filesystem utilities used across modules.
+
+**Functions**:
+```python
+def validate_file_path(file_path: str) -> bool:
+    ...  # as outlined above
+
+def read_text_file_safely(file_path: str, encoding: str = "utf-8") -> str:
+    """Read text from a file with clear errors and consistent encoding."""
+
+def write_text_file_safely(file_path: str, content: str, encoding: str = "utf-8") -> None:
+    """Write text to a file ensuring parent directories exist and errors are explicit."""
+```
+
+**Notes**:
+- Raise `FileNotFoundError`, `PermissionError`, `ValueError` with actionable messages
+- Do not swallow exceptions; log and re-raise for callers to handle
+
+### Task 1.7: Integration Tests — Guidance
+
+**Goals**:
+- Align mocks to the current `main.py` factories and call flow
+- Normalize fixtures for parsers/validators/analyzers
+
+**Recommendations**:
+- Patch factories at `main.get_parser_for_language`, `main.get_validator_for_language`, `main.get_analyzer_for_language`
+- Use lightweight fake implementations returning deterministic structures
+- Avoid patching inside context managers where order can break
+
+**Assertion Patterns**:
+- Assert call order: parse → validate → analyze → output
+- Assert output generator invoked with expected format and file path
+- Assert non-zero metrics via `AccuracyValidator` when integrated
+
+### Task 1.8: Performance Monitoring — Guidance
+
+**Additions**:
+- Capture CPU time (process), wall time, and RSS deltas
+- Optional sampling of RSS during long operations (configurable interval)
+
+**Output Contract**:
+```json
+{
+  "processing_time_s": 0.0,
+  "cpu_time_s": 0.0,
+  "peak_rss_bytes": 0,
+  "rss_delta_bytes": 0
+}
+```
+
+## Documentation & Release (Phase 1D)
+
+### Task 1.9: User Documentation
+- Update `README.md` with quickstart, CLI usage, and examples
+- Add `docs/usage.md` with real COBOL sample walkthroughs
+
+### Task 1.10: Packaging & Versioning
+- Add `__version__` in a single source of truth (e.g., `src/__init__.py`)
+- Semantic versioning: `0.1.0` for Phase 1
+- Build and publish internal artifact (wheel)
+
+### Task 1.11: CI Enhancements
+- Run unit + integration test suites
+- Enforce coverage gate (80%)
+- Lint and type checks as separate jobs
+
+## CLI Examples (Reference)
+
+```bash
+python -m main analyze --input tests/fixtures/sample.cob --output out/report.yaml --format yaml --verbose
+```
+
+```bash
+python -m main analyze --input tests/fixtures/sample.cob --output out/report.txt --format text
+```
+
+## Error Catalogue (Excerpt)
+
+- CONFIG_INVALID: Configuration file invalid or missing required fields
+- INPUT_NOT_FOUND: Input file path does not exist
+- OUTPUT_WRITE_FAILED: Could not write to output file path
+- FORMAT_UNSUPPORTED: Output format not recognized
+
+## Appendix A: Default Configuration (Excerpt)
+
+```yaml
+llm:
+  provider: openai
+  model: gpt-4o
+  temperature: 0.0
+analysis:
+  language: cobol
+  chunk_size: 800
+  chunk_overlap: 80
+output:
+  format: yaml
+  path: out/report.yaml
+```
+
+## Appendix B: Predicted Output Structure (YAML)
+
+```yaml
+source_file: tests/fixtures/sample.cob
+sections:
+  - name: IDENTIFICATION DIVISION
+    type: division
+    span: { start_line: 1, end_line: 8 }
+symbols:
+  - name: MAIN-PARA
+    kind: paragraph
+    span: { start_line: 15, end_line: 42 }
+```
+
+## Roadmap Preview (Phase 2)
+
+- Introduce language-agnostic core with pluggable adapters
+- Extract COBOL-specific logic into `languages/cobol/`
+- Stabilize public interfaces for parsers/validators/analyzers
