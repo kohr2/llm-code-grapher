@@ -326,11 +326,18 @@ class TestPerformance:
         """Test LLM retry mechanism performance"""
         def mock_llm_call_with_retries(max_retries=3):
             for attempt in range(max_retries):
-                # Simulate 70% success rate on first attempt, 90% on retry
-                if attempt == 0 and attempt < 2:
-                    raise Exception("Simulated LLM error")
-                time.sleep(0.1)  # Simulate LLM call time
-                return "LLM response"
+                try:
+                    # Simulate 70% success rate on first attempt, 90% on retry
+                    if attempt == 0:
+                        raise Exception("Simulated LLM error")
+                    time.sleep(0.1)  # Simulate LLM call time
+                    return "LLM response"
+                except Exception:
+                    if attempt == max_retries - 1:
+                        # Last attempt, re-raise
+                        raise
+                    # Continue to next attempt
+                    continue
         
         start_time = time.time()
         result = mock_llm_call_with_retries()

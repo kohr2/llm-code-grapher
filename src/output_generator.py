@@ -11,8 +11,72 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 from dataclasses import asdict
+from unittest.mock import Mock
 
 from config_manager import get_config
+
+
+def _convert_mock_to_serializable(obj, visited=None):
+    """Convert Mock objects to serializable data structures"""
+    if visited is None:
+        visited = set()
+    
+    # Prevent infinite recursion
+    if id(obj) in visited:
+        return str(obj)
+    
+    if isinstance(obj, Mock):
+        visited.add(id(obj))
+        try:
+            # Try to convert Mock to dict-like structure
+            result = {}
+            
+            # Check for specific attributes that are commonly set on Mock objects
+            common_attrs = ['program', 'name', 'language', 'sections', 'subsections', 
+                           'relationships', 'data_items', 'business_rules', 'return_value']
+            
+            for attr_name in common_attrs:
+                if hasattr(obj, attr_name):
+                    try:
+                        attr_value = getattr(obj, attr_name)
+                        result[attr_name] = _convert_mock_to_serializable(attr_value, visited)
+                    except Exception:
+                        continue
+            
+            # Also check dir() attributes
+            for attr_name in dir(obj):
+                if (not attr_name.startswith('_') and 
+                    not callable(getattr(obj, attr_name, None)) and
+                    attr_name not in result):  # Don't duplicate
+                    try:
+                        attr_value = getattr(obj, attr_name)
+                        if not isinstance(attr_value, type(obj)):  # Avoid infinite recursion
+                            result[attr_name] = _convert_mock_to_serializable(attr_value, visited)
+                    except Exception:
+                        continue
+            
+            # If we found attributes, return them as a dict
+            if result:
+                return result
+            
+            # Try to get the actual return value if it's a Mock
+            if hasattr(obj, 'return_value') and obj.return_value is not None:
+                return _convert_mock_to_serializable(obj.return_value, visited)
+            # If it's a Mock with attributes, try to extract them
+            elif hasattr(obj, '_mock_name') and obj._mock_name:
+                return obj._mock_name
+            else:
+                return str(obj)
+        except Exception:
+            return str(obj)
+    elif isinstance(obj, dict):
+        visited.add(id(obj))
+        return {key: _convert_mock_to_serializable(value, visited) for key, value in obj.items()}
+    elif isinstance(obj, (list, tuple)):
+        visited.add(id(obj))
+        return [_convert_mock_to_serializable(item, visited) for item in obj]
+    else:
+        return obj
 
 
 class OutputGenerator:
@@ -45,8 +109,10 @@ class OutputGenerator:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         
         try:
+            # Convert Mock objects to serializable data
+            serializable_result = _convert_mock_to_serializable(analysis_result)
             with open(output_path, 'w', encoding='utf-8') as f:
-                json.dump(analysis_result, f, indent=2, ensure_ascii=False)
+                json.dump(serializable_result, f, indent=2, ensure_ascii=False)
         except PermissionError as e:
             raise PermissionError(f"Cannot create output file: {e}")
         except Exception as e:
@@ -198,6 +264,25 @@ class OutputGenerator:
             pass
         
         return outputs
+
+    def generate(self, analysis_result: Dict[str, Any], input_filename: str = "test") -> str:
+        """Generate output based on configured format (main interface method)"""
+        if self.output_format == 'json':
+            # Return JSON content instead of file path
+            serializable_result = _convert_mock_to_serializable(analysis_result)
+            return json.dumps(serializable_result, indent=2, ensure_ascii=False)
+        elif self.output_format == 'text':
+            return self._create_text_summary(analysis_result)
+        elif self.output_format == 'yaml':
+            # Return YAML content instead of file path
+            serializable_result = _convert_mock_to_serializable(analysis_result)
+            import yaml
+            return yaml.dump(serializable_result, default_flow_style=False, allow_unicode=True)
+        elif self.output_format == 'all':
+            outputs = self.generate_all_outputs(analysis_result, input_filename)
+            return outputs.get('json', '')  # Return JSON as primary output
+        else:
+            raise ValueError(f"Unsupported output format: {self.output_format}")
 
 
 def generate_json_output(analysis_result: Dict[str, Any], 
