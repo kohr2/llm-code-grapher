@@ -263,3 +263,170 @@ def log_processing_step(step: str, details: str = "") -> None:
     if details:
         message += f" - {details}"
     logger.info(message)
+<<<<<<< Current (Your changes)
+=======
+
+
+def validate_file_path(file_path: str) -> bool:
+    """Validate file path with proper error handling"""
+    if not file_path:
+        raise ValueError("File path cannot be empty")
+    
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(f"File not found: {file_path}")
+    
+    return True
+
+
+def detect_language(file_path: str) -> str:
+    """Detect programming language from file extension"""
+    extension = get_file_extension(file_path).lower()
+    
+    language_map = {
+        '.py': 'PYTHON',
+        '.java': 'JAVA',
+        '.js': 'JAVASCRIPT',
+        '.ts': 'TYPESCRIPT',
+        '.c': 'C',
+        '.cpp': 'CPP',
+        '.cbl': 'COBOL',
+        '.cob': 'COBOL',
+        '.go': 'GO',
+        '.rs': 'RUST',
+        '.php': 'PHP',
+        '.rb': 'RUBY',
+        '.scala': 'SCALA',
+        '.kt': 'KOTLIN',
+        '.swift': 'SWIFT',
+        '.sh': 'SHELL',
+        '.sql': 'SQL',
+        '.r': 'R',
+        '.m': 'MATLAB',
+        '.pl': 'PERL'
+    }
+    
+    return language_map.get(extension, 'UNKNOWN')
+
+
+def get_file_extension(file_path: str) -> str:
+    """Get file extension from file path"""
+    return Path(file_path).suffix
+
+
+def format_confidence_score(score: float) -> str:
+    """Format confidence score with validation"""
+    if not isinstance(score, (int, float)):
+        raise TypeError(f"Confidence score must be a number, got {type(score)}")
+    
+    if score < 0.0 or score > 1.0:
+        raise ValueError(f"Confidence score must be between 0.0 and 1.0, got {score}")
+    
+    return f"{score:.2f}"
+
+
+def format_complexity_score(score: float) -> str:
+    """Format complexity score with validation"""
+    if not isinstance(score, (int, float)):
+        raise TypeError(f"Complexity score must be a number, got {type(score)}")
+    
+    if score < 0.0 or score > 1.0:
+        raise ValueError(f"Complexity score must be between 0.0 and 1.0, got {score}")
+    
+    return f"{score:.2f}"
+
+
+def format_risk_level(risk_level: str) -> str:
+    """Format risk level with validation"""
+    if not isinstance(risk_level, str):
+        raise TypeError(f"Risk level must be a string, got {type(risk_level)}")
+    
+    valid_levels = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']
+    upper_level = risk_level.upper()
+    
+    if upper_level not in valid_levels:
+        raise ValueError(f"Risk level must be one of {valid_levels}, got {risk_level}")
+    
+    return upper_level
+
+
+def calculate_metrics(data: List[Any]) -> Dict[str, Any]:
+    """Calculate basic metrics from data"""
+    if not isinstance(data, list):
+        raise TypeError(f"Data must be a list, got {type(data)}")
+    
+    return {
+        "count": len(data),
+        "total_items": len(data)
+    }
+
+
+def generate_summary(data: Dict[str, Any]) -> str:
+    """Generate summary from data"""
+    if not isinstance(data, dict):
+        raise TypeError(f"Data must be a dictionary, got {type(data)}")
+    
+    sections = data.get("sections", [])
+    subsections = data.get("subsections", [])
+    relationships = data.get("relationships", [])
+    
+    return f"Analysis complete: {len(sections)} sections, {len(subsections)} subsections, {len(relationships)} relationships"
+
+
+def sanitize_filename(filename: str) -> str:
+    """Sanitize filename by removing invalid characters"""
+    if not isinstance(filename, str):
+        raise TypeError(f"Filename must be a string, got {type(filename)}")
+    
+    # Remove invalid characters for filenames
+    sanitized = re.sub(r'[<>:"/\\|?*]', '_', filename)
+    
+    # Remove multiple consecutive underscores
+    sanitized = re.sub(r'_+', '_', sanitized)
+    
+    # Remove leading/trailing underscores and dots
+    sanitized = sanitized.strip('_.')
+    
+    return sanitized
+
+
+def merge_overlapping_ranges(ranges: List[Tuple[int, int]]) -> List[Tuple[int, int]]:
+    """Merge overlapping ranges"""
+    if not isinstance(ranges, list):
+        raise TypeError(f"Ranges must be a list, got {type(ranges)}")
+    
+    if not ranges:
+        return []
+    
+    # Sort ranges by start position
+    sorted_ranges = sorted(ranges, key=lambda x: x[0])
+    merged = [sorted_ranges[0]]
+    
+    for current in sorted_ranges[1:]:
+        last = merged[-1]
+        
+        # If current range overlaps with the last merged range
+        if current[0] <= last[1]:
+            # Merge ranges
+            merged[-1] = (last[0], max(last[1], current[1]))
+        else:
+            # No overlap, add current range
+            merged.append(current)
+    
+    return merged
+
+
+def calculate_similarity(text1: str, text2: str) -> float:
+    """Calculate similarity between two texts using sequence matching"""
+    if not isinstance(text1, str) or not isinstance(text2, str):
+        raise TypeError("Both texts must be strings")
+    
+    if not text1 and not text2:
+        return 1.0
+    
+    if not text1 or not text2:
+        return 0.0
+    
+    # Use sequence matching for similarity
+    from difflib import SequenceMatcher
+    return SequenceMatcher(None, text1, text2).ratio()
+>>>>>>> Incoming (Background Agent changes)
