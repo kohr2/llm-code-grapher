@@ -166,3 +166,8 @@ class LLMProviderFactory:
     def register_provider(cls, name: str, provider_class: type[BaseLLMProvider]):
         """Register a new provider class"""
         cls._providers[name.lower()] = provider_class
+
+
+
+
+

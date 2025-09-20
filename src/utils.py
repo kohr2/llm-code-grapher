@@ -263,8 +263,6 @@ def log_processing_step(step: str, details: str = "") -> None:
     if details:
         message += f" - {details}"
     logger.info(message)
-<<<<<<< Current (Your changes)
-=======
 
 
 def validate_file_path(file_path: str) -> bool:
@@ -279,37 +277,18 @@ def validate_file_path(file_path: str) -> bool:
 
 
 def detect_language(file_path: str) -> str:
-    """Detect programming language from file extension"""
-    extension = get_file_extension(file_path).lower()
+    """Detect programming language from file path"""
+    if not file_path:
+        return "UNKNOWN"
     
-    language_map = {
-        '.py': 'PYTHON',
-        '.java': 'JAVA',
-        '.js': 'JAVASCRIPT',
-        '.ts': 'TYPESCRIPT',
-        '.c': 'C',
-        '.cpp': 'CPP',
-        '.cbl': 'COBOL',
-        '.cob': 'COBOL',
-        '.go': 'GO',
-        '.rs': 'RUST',
-        '.php': 'PHP',
-        '.rb': 'RUBY',
-        '.scala': 'SCALA',
-        '.kt': 'KOTLIN',
-        '.swift': 'SWIFT',
-        '.sh': 'SHELL',
-        '.sql': 'SQL',
-        '.r': 'R',
-        '.m': 'MATLAB',
-        '.pl': 'PERL'
-    }
-    
-    return language_map.get(extension, 'UNKNOWN')
+    extension = Path(file_path).suffix
+    return detect_language_from_extension(extension).upper()
 
 
 def get_file_extension(file_path: str) -> str:
     """Get file extension from file path"""
+    if not file_path:
+        return ""
     return Path(file_path).suffix
 
 
@@ -429,4 +408,3 @@ def calculate_similarity(text1: str, text2: str) -> float:
     # Use sequence matching for similarity
     from difflib import SequenceMatcher
     return SequenceMatcher(None, text1, text2).ratio()
->>>>>>> Incoming (Background Agent changes)
