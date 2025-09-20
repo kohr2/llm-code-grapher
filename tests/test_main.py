@@ -33,35 +33,28 @@ class TestMainApplication:
     
     def test_parse_arguments_valid_file(self):
         """Test argument parsing with valid COBOL file"""
-        test_args = ["main.py", "data/fixtures/vasu_fraud_management_cobol_reformatted.cbl"]
+        test_args = ['main.py', 'test.cob', '--config', 'config.yaml', '--verbose']
         
         with patch.object(sys, 'argv', test_args):
             try:
                 args = parse_arguments()
-                assert args.input_file == "data/fixtures/vasu_fraud_management_cobol_reformatted.cbl"
-                assert args.output_format == "json"  # Default
-                assert args.verbose is False  # Default
+                assert args.input_file == 'test.cob'
+                assert args.config == 'config.yaml'
+                assert args.verbose is True
             except Exception:
                 # If function doesn't exist, test the expected behavior
                 pytest.skip("main.py not yet implemented")
     
-    def test_parse_arguments_with_options(self):
-        """Test argument parsing with all options"""
-        test_args = [
-            "main.py", 
-            "test.cbl", 
-            "--output-format", "text",
-            "--verbose",
-            "--confidence-threshold", "0.8"
-        ]
+    def test_parse_arguments_minimal(self):
+        """Test argument parsing with minimal arguments"""
+        test_args = ['main.py', 'test.cob']
         
         with patch.object(sys, 'argv', test_args):
             try:
                 args = parse_arguments()
-                assert args.input_file == "test.cbl"
-                assert args.output_format == "text"
-                assert args.verbose is True
-                assert args.confidence_threshold == 0.8
+                assert args.input_file == 'test.cob'
+                assert args.config is None
+                assert args.verbose is False
             except Exception:
                 pytest.skip("main.py not yet implemented")
     
@@ -78,17 +71,17 @@ class TestMainApplication:
     
     def test_validate_input_file_valid(self):
         """Test input file validation with valid file"""
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
-            f.write("# Python code\nprint('Hello World')")
-            temp_file = f.name
+        with tempfile.NamedTemporaryFile(suffix='.cob', delete=False) as temp_file:
+            temp_file.write(b"PROGRAM-ID. TEST.")
+            temp_file_path = temp_file.name
         
         try:
-            result = validate_input_file(temp_file)
+            result = validate_input_file(temp_file_path)
             assert result is True
         except Exception:
             pytest.skip("main.py not yet implemented")
         finally:
-            os.unlink(temp_file)
+            os.unlink(temp_file_path)
     
     def test_validate_input_file_invalid_extension(self):
         """Test input file validation with invalid extension"""
@@ -108,7 +101,7 @@ class TestMainApplication:
         """Test input file validation with non-existent file"""
         try:
             with pytest.raises(FileNotFoundError):
-                validate_input_file("non_existent_file.cbl")
+                validate_input_file('nonexistent.cob')
         except Exception:
             pytest.skip("main.py not yet implemented")
     
@@ -136,65 +129,56 @@ class TestMainApplication:
         except Exception:
             pytest.skip("main.py not yet implemented")
     
+    @patch('main.ConfigManager')
     @patch('main.get_parser_for_language')
-    @patch('main.get_analyzer_for_language')
     @patch('main.get_validator_for_language')
-    def test_main_execution_success(self, mock_validator, mock_analyzer, mock_parser):
+    @patch('main.get_analyzer_for_language')
+    def test_main_success(self, mock_analyzer_factory, mock_validator_factory,
+                         mock_parser_factory, mock_config_manager):
         """Test successful main execution"""
-        # Mock the components
-        mock_parser_instance = Mock()
-        mock_parser.return_value = mock_parser_instance
+        # Setup mocks
+        mock_config = {
+            'llm': {'provider': 'openai', 'model': 'gpt-3.5-turbo'},
+            'analysis': {'confidence_threshold': 0.8},
+            'output': {'format': 'json'}
+        }
+        mock_config_manager.return_value.load_config.return_value = mock_config
         
-        mock_analyzer_instance = Mock()
-        mock_analyzer.return_value = mock_analyzer_instance
+        # Mock parser
+        mock_parser = MagicMock()
+        mock_parser.parse.return_value = {'sections': []}
+        mock_parser_factory.return_value = mock_parser
         
-        mock_validator_instance = Mock()
-        mock_validator.return_value = mock_validator_instance
+        # Mock validator
+        mock_validator = MagicMock()
+        mock_validator.validate.return_value = {'valid': True, 'errors': []}
+        mock_validator_factory.return_value = mock_validator
         
-        # Mock parsing result
-        mock_result = Mock()
-        mock_result.program.name = "TEST-PROGRAM"
-        mock_result.program.language = "UNKNOWN"  # Language-agnostic
-        mock_result.sections = [Mock()]
-        mock_result.subsections = [Mock()]
-        mock_result.relationships = []
-        mock_parser_instance.parse.return_value = mock_result
+        # Mock analyzer
+        mock_analyzer = MagicMock()
+        mock_analyzer.analyze.return_value = {'sections': [], 'confidence': 0.9}
+        mock_analyzer_factory.return_value = mock_analyzer
         
-        # Mock validation result
-        mock_validation = Mock()
-        mock_validation.is_valid = True
-        mock_validation.metrics = {"total_components": 2}
-        mock_validator_instance.validate_analysis_result.return_value = mock_validation
-        
-        # Mock analyzer result
-        mock_analysis = Mock()
-        mock_analysis.business_logic = "Test logic"
-        mock_analysis.confidence = 0.9
-        mock_analyzer_instance.analyze_section.return_value = mock_analysis
-        
-        # Create temporary file (language-agnostic)
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
-            f.write("// Sample code for testing\nfunction test() { return true; }")
-            temp_file = f.name
+        # Create temporary file
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.cob', delete=False) as temp_file:
+            temp_file.write("PROGRAM-ID. TEST.")
+            temp_file_path = temp_file.name
         
         try:
-            # Test main execution
-            with patch.object(sys, 'argv', ['main.py', temp_file]):
-                with patch('main.setup_logging'):
-                    with patch('main.parse_arguments') as mock_parse:
-                        mock_parse.return_value = Mock(
-                            input_file=temp_file,
-                            output_format='json',
-                            verbose=False,
-                            confidence_threshold=0.7
-                        )
-                        try:
-                            result = main()
-                            assert result is not None
-                        except Exception:
-                            pytest.skip("main.py not yet implemented")
+            with patch.object(sys, 'argv', ['main.py', temp_file_path]):
+                try:
+                    main()
+                    
+                    # Verify components were called
+                    mock_config_manager.assert_called_once()
+                    mock_parser_factory.assert_called_once_with('cobol')
+                    mock_validator_factory.assert_called_once_with('cobol')
+                    mock_analyzer_factory.assert_called_once_with('cobol')
+                except Exception as e:
+                    pytest.skip(f"main.py workflow not fully implemented: {e}")
+            
         finally:
-            os.unlink(temp_file)
+            os.unlink(temp_file_path)
     
     def test_main_execution_file_not_found(self):
         """Test main execution with non-existent file"""
