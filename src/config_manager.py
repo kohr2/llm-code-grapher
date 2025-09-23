@@ -54,6 +54,14 @@ class LoggingConfig(BaseModel):
     format: str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 
 
+class Neo4jConfig(BaseModel):
+    """Neo4j configuration settings"""
+    uri: str = "bolt://localhost:7687"
+    username: str = "neo4j"
+    password: str = "password"
+    database: str = "neo4j"
+
+
 class Config(BaseModel):
     """Main configuration class"""
     llm: LLMConfig = Field(default_factory=LLMConfig)
@@ -61,6 +69,7 @@ class Config(BaseModel):
     language: LanguageConfig = Field(default_factory=LanguageConfig)
     output: OutputConfig = Field(default_factory=OutputConfig)
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
+    neo4j: Optional[Neo4jConfig] = None
 
 
 class ConfigManager:

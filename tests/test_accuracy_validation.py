@@ -100,12 +100,9 @@ class TestAccuracyValidation:
     
     def test_load_ground_truth_missing_file(self):
         """Test loading ground truth from missing file"""
-        try:
-            validator = AccuracyValidator("non_existent_file.json")
-            with pytest.raises(FileNotFoundError):
-                validator.load_ground_truth()
-        except Exception:
-            pytest.skip("accuracy_validator.py not yet implemented")
+        validator = AccuracyValidator("non_existent_file.json")
+        with pytest.raises(FileNotFoundError):
+            validator.load_ground_truth()
     
     def test_load_ground_truth_invalid_json(self):
         """Test loading ground truth from invalid JSON file"""
@@ -117,8 +114,6 @@ class TestAccuracyValidation:
             validator = AccuracyValidator(temp_file)
             with pytest.raises(json.JSONDecodeError):
                 validator.load_ground_truth()
-        except Exception:
-            pytest.skip("accuracy_validator.py not yet implemented")
         finally:
             os.unlink(temp_file)
     

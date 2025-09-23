@@ -37,7 +37,7 @@ class AccuracyValidator:
             ground_truth_path: Path to ground truth JSON file
         """
         self.ground_truth_path = ground_truth_path
-        self.ground_truth = self._load_ground_truth()
+        self.ground_truth = {}
     
     def _load_ground_truth(self) -> Dict[str, Any]:
         """Load ground truth data from file"""
@@ -51,7 +51,11 @@ class AccuracyValidator:
             with open(self.ground_truth_path, 'r') as f:
                 return json.load(f)
         except json.JSONDecodeError as e:
-            raise ValueError(f"Invalid JSON in ground truth file: {e}")
+            raise e
+    
+    def load_ground_truth(self) -> Dict[str, Any]:
+        """Public method to load ground truth data from file"""
+        return self._load_ground_truth()
     
     def validate_section_accuracy(self, predicted_sections: List[Dict], 
                                 ground_truth_sections: List[Dict]) -> Dict[str, Any]:
