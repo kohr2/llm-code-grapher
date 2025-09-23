@@ -10,6 +10,11 @@ from pathlib import Path
 from typing import Dict, Any, Optional
 from pydantic import BaseModel, Field
 
+try:
+    from dotenv import load_dotenv
+except ImportError:
+    load_dotenv = None
+
 
 class LLMConfig(BaseModel):
     """LLM configuration settings"""
@@ -79,6 +84,10 @@ class ConfigManager:
         self.config_path = config_path or "config.yaml"
         self._config: Optional[Config] = None
         self.config: Optional[Dict[str, Any]] = None
+        
+        # Load .env file if available
+        if load_dotenv:
+            load_dotenv()
     
     def load_config(self) -> Config:
         """Load configuration from file and environment variables"""

@@ -7,13 +7,14 @@ and graph visualizations. Language-agnostic output generation.
 
 import json
 import os
+import logging
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 from dataclasses import asdict
 from unittest.mock import Mock
 
-from config_manager import get_config
+from .config_manager import get_config
 
 
 def _convert_mock_to_serializable(obj, visited=None):
@@ -86,6 +87,7 @@ class OutputGenerator:
         self.config = get_config()
         self.output_dir = Path(output_dir or self.config.output.output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
+        self.logger = logging.getLogger(__name__)
         
         # Validate output format if provided
         if output_format is not None:

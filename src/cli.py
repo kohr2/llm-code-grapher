@@ -13,6 +13,8 @@ from typing import Optional
 from .config_manager import get_config, reload_config
 from .utils import read_file_safely, log_processing_step, detect_language_from_extension
 from .output_generator import generate_output
+from .neo4j_converter import convert_parser_result_to_neo4j
+from .neo4j_database import create_neo4j_database, Neo4jConfig
 
 
 @click.group()
@@ -51,10 +53,13 @@ def cli(ctx, config: Optional[str], verbose: bool):
               help='LLM provider to use (overrides config)')
 @click.option('--model', help='Model to use (overrides config)')
 @click.option('--base-url', help='Base URL for local providers like Ollama')
+@click.option('--neo4j', is_flag=True, help='Insert results into Neo4j database (reads credentials from .env)')
+@click.option('--clear-db', is_flag=True, help='Clear Neo4j database before inserting')
 @click.pass_context
 def analyze(ctx, input_file: str, language: Optional[str], output_dir: Optional[str], 
            output_format: str, confidence_threshold: float,
-           provider: Optional[str], model: Optional[str], base_url: Optional[str]):
+           provider: Optional[str], model: Optional[str], base_url: Optional[str],
+           neo4j: bool, clear_db: bool):
     """Analyze a code file and generate structured output"""
     
     verbose = ctx.obj.get('verbose', False)
@@ -111,7 +116,8 @@ def analyze(ctx, input_file: str, language: Optional[str], output_dir: Optional[
         
         # Parse the code file
         log_processing_step(f"Parsing {language.upper()} structure")
-        sections = parser.parse_sections(code_content)
+        result = parser.parse(Path(input_file))
+        sections = result.sections
         
         # Analyze with LLM
         log_processing_step("Analyzing with LLM")
@@ -126,55 +132,87 @@ def analyze(ctx, input_file: str, language: Optional[str], output_dir: Optional[
             section.confidence = analysis.get('confidence', 0.0)
             analyzed_sections.append(section)
         
-        # Create ontology
-        log_processing_step(f"Creating {language.upper()} ontology")
-        program_ontology = ontology.create_program_ontology(
-            program_name=Path(input_file).stem,
-            sections=analyzed_sections
-        )
+        # Update result with analyzed sections
+        result.sections = analyzed_sections
         
-        # Create analysis result from ontology
+        # Create analysis result from parser result
         analysis_result = {
-            "program_name": program_ontology.program_name,
+            "program_name": result.program.name,
             "language": language.upper(),
-            "total_sections": len(program_ontology.sections),
-            "total_subsections": len(program_ontology.subsections),
+            "total_sections": len(result.sections),
+            "total_subsections": len(result.subsections),
             "sections": [
                 {
                     "name": section.name,
-                    "type": section.type,
-                    "line_range": section.line_range,
-                    "line_count": section.line_count,
-                    "business_logic": section.business_logic,
-                    "confidence": section.confidence,
+                    "type": getattr(section, 'type', 'UNKNOWN'),
+                    "line_range": getattr(section, 'line_range', [0, 0]),
+                    "line_count": getattr(section, 'line_count', 0),
+                    "business_logic": getattr(section, 'business_logic', ''),
+                    "confidence": getattr(section, 'confidence', 0.0),
                     "complexity_score": getattr(section, 'complexity_score', 0.0),
                     "risk_level": getattr(section, 'risk_level', 'LOW')
                 }
-                for section in program_ontology.sections
+                for section in result.sections
             ],
             "relationships": [
                 {
                     "source": rel.source,
                     "target": rel.target,
                     "relationship_type": rel.relationship_type,
-                    "confidence": rel.confidence,
-                    "strength": rel.strength
+                    "confidence": getattr(rel, 'confidence', 0.0),
+                    "strength": getattr(rel, 'strength', 0.0)
                 }
-                for rel in program_ontology.relationships
+                for rel in result.relationships
             ],
-            "ontology_metrics": program_ontology.complexity_metrics,
-            "quality_indicators": program_ontology.quality_indicators,
-            "maintenance_risks": program_ontology.maintenance_risks,
-            "modernization_potential": program_ontology.modernization_potential,
             "confidence_threshold": confidence_threshold
         }
         
         # Generate outputs
         log_processing_step("Generating outputs")
-        output_generator = generate_output(analysis_result, input_file, output_dir, output_format)
+        output_generator = generate_output(analysis_result, Path(input_file).stem, output_dir)
         
         if verbose:
             click.echo(f"Analysis complete. Generated {len(output_generator)} output files.")
+        
+        # Neo4j integration
+        if neo4j:
+            try:
+                log_processing_step("Converting to Neo4j format")
+                
+                # Use the actual parser result for Neo4j conversion
+                # Update result with additional data
+                result.program.name = analysis_result["program_name"]
+                result.program.language = language.upper()
+                result.program.line_count = len(code_content.split('\n'))
+                
+                # Convert to Neo4j format
+                graph_data = convert_parser_result_to_neo4j(result)
+                
+                log_processing_step("Connecting to Neo4j database")
+                db = create_neo4j_database()
+                
+                with db:
+                    if clear_db:
+                        log_processing_step("Clearing Neo4j database")
+                        db.clear_database()
+                    
+                    log_processing_step(f"Inserting {graph_data.node_count} nodes and {graph_data.relationship_count} relationships into Neo4j")
+                    db.insert_graph_data(graph_data)
+                    
+                    if verbose:
+                        click.echo(f"Neo4j insertion complete:")
+                        click.echo(f"  - Nodes: {graph_data.node_count}")
+                        click.echo(f"  - Relationships: {graph_data.relationship_count}")
+                
+                click.echo("✅ Neo4j insertion completed successfully!")
+                
+            except Exception as neo4j_error:
+                log_processing_step(f"Neo4j insertion failed: {neo4j_error}")
+                click.echo(f"⚠️  Neo4j insertion failed: {neo4j_error}", err=True)
+                if verbose:
+                    import traceback
+                    click.echo(traceback.format_exc(), err=True)
+                # Don't exit on Neo4j failure, just warn
         
         click.echo("✅ Analysis completed successfully!")
         
