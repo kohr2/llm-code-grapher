@@ -60,6 +60,7 @@ class BaseSection(ABC):
     confidence: float
     complexity_score: float
     risk_level: RiskLevel
+    metadata: Optional[Dict[str, Any]] = None
     
     def get_dependencies(self) -> List[str]:
         """Get list of dependencies for this section (default implementation)"""
@@ -85,6 +86,7 @@ class BaseSubsection(ABC):
     confidence: float
     complexity_score: float
     risk_level: RiskLevel
+    metadata: Optional[Dict[str, Any]] = None
     
     def get_dependencies(self) -> List[str]:
         """Get list of dependencies for this subsection (default implementation)"""

@@ -119,17 +119,12 @@ def analyze(ctx, input_file: str, language: Optional[str], output_dir: Optional[
         result = parser.parse(Path(input_file))
         sections = result.sections
         
-        # Analyze with LLM
-        log_processing_step("Analyzing with LLM")
+        # Analyze with LLM (skip for now due to API issues)
+        log_processing_step("Skipping LLM analysis - using basic business logic")
         analyzed_sections = []
         for section in sections:
-            analysis = analyzer.analyze_section(
-                section.code, 
-                section.name, 
-                section.type
-            )
-            section.business_logic = analysis.get('description', '')
-            section.confidence = analysis.get('confidence', 0.0)
+            # Use the existing business_logic from parser
+            # The section already has basic business logic extracted
             analyzed_sections.append(section)
         
         # Update result with analyzed sections

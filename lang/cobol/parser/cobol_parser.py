@@ -105,19 +105,26 @@ class COBOLParser(BaseParser):
     def _get_section_patterns(self) -> Dict[str, str]:
         """Get COBOL-specific section patterns"""
         return {
-            'IDENTIFICATION': r'^IDENTIFICATION\s+DIVISION',
-            'ENVIRONMENT': r'^ENVIRONMENT\s+DIVISION',
-            'DATA': r'^DATA\s+DIVISION',
-            'PROCEDURE': r'^PROCEDURE\s+DIVISION'
+            # COBOL Divisions (with line numbers)
+            'IDENTIFICATION': r'^\d+\s+IDENTIFICATION\s+DIVISION',
+            'ENVIRONMENT': r'^\d+\s+ENVIRONMENT\s+DIVISION',
+            'DATA': r'^\d+\s+DATA\s+DIVISION',
+            'PROCEDURE': r'^\d+\s+PROCEDURE\s+DIVISION',
+            # COBOL Sections (numbered sections like 1000-INITIALIZE-PROGRAM SECTION)
+            # Note: COBOL lines may have line numbers at the beginning
+            'SECTION': r'^\d+\s+\d+-(\w+(?:-\w+)*)\s+SECTION'
         }
     
     def _get_subsection_patterns(self) -> Dict[str, str]:
         """Get COBOL-specific subsection patterns"""
         return {
+            # COBOL Divisions
             'FILE': r'^FILE\s+SECTION',
             'WORKING-STORAGE': r'^WORKING-STORAGE\s+SECTION',
             'LINKAGE': r'^LINKAGE\s+SECTION',
-            'PROCEDURE_SECTION': r'^PROCEDURE\s+SECTION'
+            'PROCEDURE_SECTION': r'^PROCEDURE\s+SECTION',
+            # COBOL Paragraphs (within sections)
+            'PARAGRAPH': r'^\d+\s+\d+-(\w+(?:-\w+)*)\.'
         }
     
     def _get_relationship_patterns(self) -> Dict[str, str]:
@@ -182,7 +189,7 @@ class COBOLParser(BaseParser):
         sections = []
         matches = self._find_pattern_matches(lines, self.section_patterns)
         
-        for line_index, section_type, _ in matches:
+        for line_index, section_type, match_text in matches:
             # Find the end of this section
             end_line = self._find_section_end(lines, line_index, section_type)
             
@@ -193,16 +200,34 @@ class COBOLParser(BaseParser):
             complexity_score = self._calculate_complexity_score(lines, line_index, end_line)
             risk_level = self._assess_risk_level(lines, line_index, end_line)
             
+            # Extract section name based on type
+            original_line_number = None
+            if section_type == 'SECTION':
+                # Extract section name from match text (e.g., "022300 1000-INITIALIZE-PROGRAM SECTION")
+                import re
+                match = re.match(r'^\d+\s+\d+-(\w+(?:-\w+)*)\s+SECTION', match_text)
+                if match:
+                    # Only use the actual section name, ignore all line numbers
+                    section_name = match.group(1)
+                    name = section_name
+                else:
+                    name = "UNKNOWN-SECTION"
+            else:
+                # For divisions, use the division type as the name
+                name = f"{section_type}-DIVISION"
+            
             # Create section using base class method
             section = self._create_section(
-                name=f"{section_type}-DIVISION",
+                name=name,
                 section_type=section_type,
                 line_range=(line_index + 1, end_line + 1),
                 business_logic=business_logic,
                 confidence=0.9,  # High confidence for structure detection
                 complexity_score=complexity_score,
-                risk_level=risk_level
+                risk_level=risk_level,
+                metadata=None
             )
+            
             sections.append(COBOLSection(**section.__dict__))
         
         return sections
@@ -212,7 +237,7 @@ class COBOLParser(BaseParser):
         subsections = []
         matches = self._find_pattern_matches(lines, self.subsection_patterns)
         
-        for line_index, subsection_type, _ in matches:
+        for line_index, subsection_type, match_text in matches:
             # Find parent section
             parent_section = self._find_parent_section(sections, line_index)
             
@@ -226,9 +251,22 @@ class COBOLParser(BaseParser):
             complexity_score = self._calculate_complexity_score(lines, line_index, end_line)
             risk_level = self._assess_risk_level(lines, line_index, end_line)
             
+            # Extract subsection name based on type
+            if subsection_type == 'PARAGRAPH':
+                # Extract paragraph name from match text (e.g., "021700 0000-MAIN-PROCESS.")
+                import re
+                match = re.match(r'^\d+\s+\d+-(\w+(?:-\w+)*)\.', match_text)
+                if match:
+                    paragraph_name = match.group(1)
+                    name = paragraph_name
+                else:
+                    name = "UNKNOWN-PARAGRAPH"
+            else:
+                name = f"{subsection_type}-SECTION"
+            
             # Create subsection using base class method
             subsection = self._create_subsection(
-                name=f"{subsection_type}-SECTION",
+                name=name,
                 parent_section=parent_section,
                 line_range=(line_index + 1, end_line + 1),
                 business_logic=business_logic,

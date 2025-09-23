@@ -30,7 +30,7 @@ class CodeNode:
             "node_id": f"'{self.node_id}'",
             "name": f"'{escaped_name}'",
             "language": f"'{self.language}'",
-            **{k: json.dumps(v) if isinstance(v, (dict, list)) else repr(v) 
+            **{k: json.dumps(v) if isinstance(v, (dict, list, tuple)) else f"'{str(v).replace(chr(39), chr(92)+chr(39))}'" if isinstance(v, str) else repr(v)
                for k, v in self.properties.items()}
         }
         

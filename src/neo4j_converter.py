@@ -39,6 +39,9 @@ class ParserResultConverter:
         """Convert a parser result to GraphData"""
         graph_data = GraphData()
         
+        # Store graph data for relationship mapping
+        self._current_graph_data = graph_data
+        
         # Add program node
         program_node = self._create_program_node(result)
         graph_data.add_node(program_node)
@@ -58,7 +61,7 @@ class ParserResultConverter:
         for node in data_nodes:
             graph_data.add_node(node)
         
-        # Add relationships
+        # Add relationships (now with access to all nodes)
         relationships = self._create_relationships(result, program_node.node_id)
         for rel in relationships:
             graph_data.add_relationship(rel)
@@ -128,7 +131,8 @@ class ParserResultConverter:
                 "complexity_score": getattr(subsection, 'complexity_score', 0.0),
                 "risk_level": getattr(subsection, 'risk_level', 'UNKNOWN'),
                 "confidence": getattr(subsection, 'confidence', 0.0),
-                "subsection_type": getattr(subsection, 'type', 'UNKNOWN')
+                "subsection_type": getattr(subsection, 'type', 'UNKNOWN'),
+                "parent_section": getattr(subsection, 'parent_section', 'UNKNOWN')
             }
             
             # Remove None values
@@ -192,25 +196,60 @@ class ParserResultConverter:
             )
             relationships.append(rel)
         
-        # Add program to subsection relationships
+        # Add section to subsection relationships
         for i, subsection in enumerate(result.subsections):
             subsection_id = f"subsection_{i + 1}"  # This should match the ID generation in _create_subsection_nodes
-            rel = CodeRelationship(
-                source_id=program_id,
-                target_id=subsection_id,
-                relationship_type="CONTAINS",
-                properties={
-                    "description": f"Program contains subsection {subsection.name}",
-                    "confidence": 1.0
-                }
-            )
-            relationships.append(rel)
+            
+            # Find the parent section ID
+            parent_section_id = None
+            if hasattr(subsection, 'parent_section') and subsection.parent_section:
+                # Find the section with matching name
+                for j, section in enumerate(result.sections):
+                    if section.name == subsection.parent_section:
+                        parent_section_id = f"section_{j + 1}"
+                        break
+            
+            # If we found a parent section, link subsection to section
+            # Otherwise, link to program as fallback
+            if parent_section_id:
+                rel = CodeRelationship(
+                    source_id=parent_section_id,
+                    target_id=subsection_id,
+                    relationship_type="CONTAINS",
+                    properties={
+                        "description": f"Section {subsection.parent_section} contains subsection {subsection.name}",
+                        "confidence": 1.0
+                    }
+                )
+                relationships.append(rel)
+            else:
+                # Fallback: link to program if no parent section found
+                rel = CodeRelationship(
+                    source_id=program_id,
+                    target_id=subsection_id,
+                    relationship_type="CONTAINS",
+                    properties={
+                        "description": f"Program contains subsection {subsection.name}",
+                        "confidence": 1.0
+                    }
+                )
+                relationships.append(rel)
         
         # Add relationships from parser result
         for i, rel in enumerate(result.relationships):
+            # Skip relationships that reference non-existent sections
+            # Since we're ignoring line numbers, we can't map numeric targets to actual sections
+            if rel.target.isdigit():
+                # Skip numeric targets that don't correspond to actual sections
+                continue
+            
             # Map source and target to actual node IDs
             source_id = self._map_to_node_id(rel.source, program_id)
             target_id = self._map_to_node_id(rel.target, program_id)
+            
+            # Skip relationships that map to the same node (avoid self-loops)
+            if source_id == target_id:
+                continue
             
             relationship = CodeRelationship(
                 source_id=source_id,
@@ -234,8 +273,12 @@ class ParserResultConverter:
         # to map relationship names to actual node IDs
         
         # If it's a number, it might be a section reference
+        # Since we're ignoring line numbers, we'll map numbers to program for now
+        # In a real implementation, you'd want more sophisticated mapping logic
         if name.isdigit():
-            return f"section_{name}"
+            # For now, map all numeric references to the program node
+            # This could be improved with better relationship analysis
+            return program_id
         
         # If it contains common section keywords, treat as section
         section_keywords = ['SECTION', 'PARA', 'PROCEDURE']

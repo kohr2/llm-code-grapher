@@ -141,7 +141,8 @@ class BaseParser(ABC):
     
     def _create_section(self, name: str, section_type: str, line_range: tuple[int, int], 
                        business_logic: str, confidence: float = 0.9, 
-                       complexity_score: float = 0.5, risk_level: str = "LOW") -> BaseSection:
+                       complexity_score: float = 0.5, risk_level: str = "LOW",
+                       metadata: Optional[Dict[str, Any]] = None) -> BaseSection:
         """Create a section with default values (to be overridden by subclasses)"""
         line_count = line_range[1] - line_range[0] + 1
         return BaseSection(
@@ -152,7 +153,8 @@ class BaseParser(ABC):
             business_logic=business_logic,
             confidence=confidence,
             complexity_score=complexity_score,
-            risk_level=risk_level
+            risk_level=risk_level,
+            metadata=metadata
         )
     
     def _create_subsection(self, name: str, parent_section: str, line_range: tuple[int, int],
