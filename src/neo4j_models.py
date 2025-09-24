@@ -30,13 +30,33 @@ class CodeNode:
             "node_id": f"'{self.node_id}'",
             "name": f"'{escaped_name}'",
             "language": f"'{self.language}'",
-            **{k: json.dumps(v) if isinstance(v, (dict, list, tuple)) else f"'{str(v).replace(chr(39), chr(92)+chr(39))}'" if isinstance(v, str) else repr(v)
-               for k, v in self.properties.items()}
+            **{k: self._format_property_value(v) for k, v in self.properties.items()}
         }
         
         props_str = ", ".join([f"{k}: {v}" for k, v in props.items()])
         
         return f"CREATE (n:{self.node_type} {{{props_str}}})"
+    
+    def _format_property_value(self, value: Any) -> str:
+        """Format a property value for Cypher syntax"""
+        if isinstance(value, dict):
+            # For nested objects, create a proper Cypher map syntax
+            inner_props = []
+            for k, v in value.items():
+                formatted_v = self._format_property_value(v)
+                inner_props.append(f"{k}: {formatted_v}")
+            return f"{{{', '.join(inner_props)}}}"
+        elif isinstance(value, (list, tuple)):
+            # For lists/arrays, create Cypher array syntax
+            formatted_items = [self._format_property_value(item) for item in value]
+            return f"[{', '.join(formatted_items)}]"
+        elif isinstance(value, str):
+            # Escape single quotes in strings
+            escaped_value = value.replace("'", "\\'")
+            return f"'{escaped_value}'"
+        else:
+            # For numbers, booleans, etc., use repr
+            return repr(value)
     
     def validate(self) -> None:
         """Validate node data"""
@@ -62,8 +82,7 @@ class CodeRelationship:
     def to_cypher(self) -> str:
         """Convert relationship to Cypher CREATE statement"""
         # Build properties string
-        props = {k: json.dumps(v) if isinstance(v, (dict, list)) else repr(v) 
-                for k, v in self.properties.items()}
+        props = {k: self._format_property_value(v) for k, v in self.properties.items()}
         
         props_str = ", ".join([f"{k}: {v}" for k, v in props.items()]) if props else ""
         props_clause = f" {{{props_str}}}" if props_str else ""
@@ -73,6 +92,27 @@ class CodeRelationship:
             f"(target {{node_id: '{self.target_id}'}}) "
             f"CREATE (source)-[r:{self.relationship_type}{props_clause}]->(target)"
         )
+    
+    def _format_property_value(self, value: Any) -> str:
+        """Format a property value for Cypher syntax"""
+        if isinstance(value, dict):
+            # For nested objects, create a proper Cypher map syntax
+            inner_props = []
+            for k, v in value.items():
+                formatted_v = self._format_property_value(v)
+                inner_props.append(f"{k}: {formatted_v}")
+            return f"{{{', '.join(inner_props)}}}"
+        elif isinstance(value, (list, tuple)):
+            # For lists/arrays, create Cypher array syntax
+            formatted_items = [self._format_property_value(item) for item in value]
+            return f"[{', '.join(formatted_items)}]"
+        elif isinstance(value, str):
+            # Escape single quotes in strings
+            escaped_value = value.replace("'", "\\'")
+            return f"'{escaped_value}'"
+        else:
+            # For numbers, booleans, etc., use repr
+            return repr(value)
     
     def validate(self) -> None:
         """Validate relationship data"""
