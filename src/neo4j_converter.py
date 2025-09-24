@@ -371,10 +371,54 @@ class ParserResultConverter:
         
         return nodes
     
+    def _is_non_business_rule_prefix(self, name: str) -> bool:
+        """Check if a subsection name has a prefix that indicates it's not a business rule"""
+        non_business_prefixes = [
+            # File operations
+            "OPEN-", "CLOSE-", "READ-", "WRITE-", "REWRITE-", "DELETE-",
+            # Initialization and setup
+            "INIT-", "INITIALIZE-", "LOAD-", "SETUP-", "CONFIGURE-",
+            # Logging and reporting
+            "LOG-", "REPORT-", "PRINT-", "DISPLAY-", "WRITE-LOG-",
+            # Data movement and copying
+            "MOVE-", "COPY-", "TRANSFER-", "ASSIGN-",
+            # Control flow
+            "START-", "END-", "EXIT-", "RETURN-", "GO-TO-",
+            # Validation and checking (but not business rules)
+            "VALIDATE-FORMAT-", "CHECK-SYNTAX-", "VERIFY-STRUCTURE-",
+            # Utility functions
+            "CALCULATE-", "COMPUTE-", "CONVERT-", "FORMAT-", "PARSE-",
+            # System operations
+            "SYSTEM-", "OS-", "FILE-", "DIRECTORY-", "PATH-",
+            # Database operations
+            "DB-", "SQL-", "QUERY-", "INSERT-", "UPDATE-", "SELECT-",
+            # Network operations
+            "SEND-", "RECEIVE-", "CONNECT-", "DISCONNECT-", "HTTP-",
+            # Memory operations
+            "ALLOCATE-", "FREE-", "MEMORY-", "BUFFER-",
+            # Error handling
+            "ERROR-", "EXCEPTION-", "HANDLE-ERROR-", "CATCH-",
+            # Performance monitoring
+            "PERFORMANCE-", "MONITOR-", "METRICS-", "STATS-",
+            # Cleanup operations
+            "CLEANUP-", "CLEAR-", "RESET-", "FLUSH-", "PURGE-"
+        ]
+        
+        name_upper = name.upper()
+        for prefix in non_business_prefixes:
+            if name_upper.startswith(prefix):
+                return True
+        return False
+    
     def _is_business_rule(self, subsection) -> bool:
         """Use LLM to determine if a subsection contains a business rule"""
         if not subsection.business_logic or not subsection.name:
             logger.debug(f"🔍 Skipping subsection {subsection.name}: missing business_logic or name")
+            return False
+        
+        # First check if this is clearly not a business rule based on common prefixes
+        if self._is_non_business_rule_prefix(subsection.name):
+            logger.info(f"🚫 Skipping LLM call for '{subsection.name}' - non-business rule prefix detected")
             return False
         
         import time
