@@ -321,24 +321,64 @@ class ParserResultConverter:
         # Create business rule nodes
         logger.info(f"🚀 Starting detailed analysis of {len(business_rules)} business rules...")
         
+        # Use hybrid approach: batch small groups for optimal performance
+        batch_analyses = {}
+        if len(business_rules) > 1:
+            # Use small batches (2-3 rules) for optimal performance
+            batch_size = min(3, len(business_rules))
+            logger.info(f"📦 Using hybrid batch analysis (size: {batch_size}) for {len(business_rules)} business rules")
+            
+            for i in range(0, len(business_rules), batch_size):
+                batch_group = business_rules[i:i + batch_size]
+                logger.info(f"📦 Processing batch {i//batch_size + 1}: {len(batch_group)} rules")
+                
+                try:
+                    if len(batch_group) > 1:
+                        group_analyses = self._analyze_business_rules_batch(batch_group)
+                        batch_analyses.update(group_analyses)
+                        logger.info(f"✅ Batch {i//batch_size + 1} completed: {len(group_analyses)} rules")
+                    else:
+                        # Single rule - use individual analysis
+                        rule = batch_group[0]
+                        analysis = self._analyze_business_rule_with_llm(rule.business_logic, rule.name)
+                        batch_analyses[rule.name] = analysis
+                        logger.info(f"✅ Individual analysis completed for: {rule.name}")
+                except Exception as e:
+                    logger.error(f"❌ Batch {i//batch_size + 1} failed: {e}")
+                    logger.info(f"🔄 Falling back to individual analysis for this batch")
+                    # Fall back to individual analysis for this batch
+                    for rule in batch_group:
+                        try:
+                            analysis = self._analyze_business_rule_with_llm(rule.business_logic, rule.name)
+                            batch_analyses[rule.name] = analysis
+                        except Exception as e2:
+                            logger.error(f"❌ Individual analysis also failed for {rule.name}: {e2}")
+        
         for i, rule in enumerate(business_rules, 1):
-            logger.info(f"📝 Analyzing business rule {i}/{len(business_rules)}: {rule.name}")
+            logger.info(f"📝 Processing business rule {i}/{len(business_rules)}: {rule.name}")
             # Generate dynamic rule ID based on analysis
             rule_id = f"DYNAMIC_RULE_{i+1:03d}"
             
-            try:
-                # Analyze business rule using LLM
-                analysis = self._analyze_business_rule_with_llm(rule.business_logic, rule.name)
-                description = analysis["description"]
-                priority = analysis["priority"]
-                risk_level = analysis["risk_level"]
-                functional_area = analysis["functional_area"]
-                analysis_confidence = analysis["confidence"]
-                analysis_method = "LLM"
-            except Exception as e:
-                logger.error(f"Failed to analyze business rule {rule.name}: {e}")
-                # Skip this rule if LLM analysis fails
-                continue
+            # Use batch analysis if available, otherwise fall back to individual
+            if len(business_rules) > 1 and rule.name in batch_analyses:
+                analysis = batch_analyses[rule.name]
+                analysis_method = "LLM_BATCH"
+                logger.info(f"📦 Using batch analysis for {rule.name}")
+            else:
+                try:
+                    # Analyze business rule using LLM individually
+                    analysis = self._analyze_business_rule_with_llm(rule.business_logic, rule.name)
+                    analysis_method = "LLM_INDIVIDUAL"
+                except Exception as e:
+                    logger.error(f"Failed to analyze business rule {rule.name}: {e}")
+                    # Skip this rule if LLM analysis fails
+                    continue
+            
+            description = analysis["description"]
+            priority = analysis["priority"]
+            risk_level = analysis["risk_level"]
+            functional_area = analysis["functional_area"]
+            analysis_confidence = analysis["confidence"]
             
             properties = {
                 "description": description,
@@ -436,6 +476,55 @@ Answer: YES or NO
         
         return any(pattern in name or pattern in logic for pattern in rule_patterns)
     
+    def _analyze_business_rules_batch(self, business_rules: List[Any]) -> Dict[str, Dict[str, Any]]:
+        """Analyze multiple business rules in a single LLM call for better performance"""
+        import time
+        start_time = time.time()
+        
+        try:
+            logger.info(f"🚀 Starting batch LLM analysis for {len(business_rules)} business rules")
+            
+            # Create batch prompt
+            prompt_start = time.time()
+            prompt = self._create_batch_business_rule_analysis_prompt(business_rules)
+            prompt_time = time.time() - prompt_start
+            
+            logger.info(f"📋 Batch prompt created in {prompt_time:.3f}s (length: {len(prompt)} chars)")
+            
+            # Make single LLM call
+            llm_start = time.time()
+            logger.info(f"🤖 Making batch LLM API call for {len(business_rules)} rules")
+            response = self.analyzer.provider.generate_response([{"role": "user", "content": prompt}])
+            llm_time = time.time() - llm_start
+            
+            # Track LLM call statistics
+            self.llm_call_count += 1
+            self.total_llm_time += llm_time
+            
+            logger.info(f"⚡ Batch LLM API call completed in {llm_time:.3f}s for {len(business_rules)} rules")
+            logger.info(f"📄 Response length: {len(response)} characters")
+            logger.info(f"📊 LLM Call #{self.llm_call_count} | Total LLM time: {self.total_llm_time:.3f}s | Avg: {self.total_llm_time/self.llm_call_count:.3f}s")
+            
+            # Parse batch response
+            parse_start = time.time()
+            batch_analyses = self._parse_batch_business_rule_response(response, business_rules)
+            parse_time = time.time() - parse_start
+            
+            total_time = time.time() - start_time
+            
+            logger.info(f"✅ Batch LLM analysis completed for {len(batch_analyses)} rules")
+            logger.info(f"⏱️  Total time: {total_time:.3f}s (prompt: {prompt_time:.3f}s, LLM: {llm_time:.3f}s, parse: {parse_time:.3f}s)")
+            
+            # Log conversation to file
+            self._log_conversation("BUSINESS_RULE_BATCH_ANALYSIS", f"{len(business_rules)}_rules", prompt, response, llm_time)
+            
+            return batch_analyses
+            
+        except Exception as e:
+            total_time = time.time() - start_time
+            logger.error(f"❌ Batch LLM analysis failed after {total_time:.3f}s: {e}")
+            raise RuntimeError(f"Batch LLM analysis failed: {e}")
+    
     def _analyze_business_rule_with_llm(self, business_logic: str, rule_name: str) -> Dict[str, Any]:
         """Analyze business rule using LLM - dynamic analysis only"""
         if not self.analyzer:
@@ -489,6 +578,84 @@ Answer: YES or NO
             total_time = time.time() - start_time
             logger.error(f"❌ LLM analysis failed for rule {rule_name} after {total_time:.3f}s: {e}")
             raise RuntimeError(f"LLM analysis failed for rule {rule_name}: {e}")
+    
+    def _create_batch_business_rule_analysis_prompt(self, business_rules: List[Any]) -> str:
+        """Create an optimized batch prompt for analyzing multiple business rules"""
+        rules_text = ""
+        for i, rule in enumerate(business_rules, 1):
+            rules_text += f"{i}. {rule.name}: {rule.business_logic}\n"
+        
+        return f"""
+Analyze these {self.language.upper()} business rules:
+
+{rules_text}
+
+For each rule, provide:
+RULE: [name]
+DESCRIPTION: [what it does]
+PRIORITY: [HIGH/MEDIUM/LOW]
+RISK_LEVEL: [CRITICAL/HIGH/MEDIUM/LOW]
+FUNCTIONAL_AREA: [area]
+CONFIDENCE: [0.0-1.0]
+"""
+    
+    def _parse_batch_business_rule_response(self, response: str, business_rules: List[Any]) -> Dict[str, Dict[str, Any]]:
+        """Parse optimized batch LLM response for multiple business rules"""
+        analyses = {}
+        
+        # Split response by rule sections
+        lines = response.strip().split('\n')
+        current_rule = None
+        current_analysis = {}
+        
+        for line in lines:
+            line = line.strip()
+            
+            # Check for new rule section (simplified pattern)
+            if line.startswith('RULE:'):
+                # Save previous rule if exists
+                if current_rule and current_analysis:
+                    analyses[current_rule] = current_analysis
+                
+                # Start new rule
+                current_rule = line.replace('RULE:', '').strip()
+                current_analysis = {}
+                
+            elif current_rule and line.startswith('DESCRIPTION:'):
+                current_analysis["description"] = line.replace('DESCRIPTION:', '').strip()
+            elif current_rule and line.startswith('PRIORITY:'):
+                priority = line.replace('PRIORITY:', '').strip().upper()
+                current_analysis["priority"] = priority if priority in ['HIGH', 'MEDIUM', 'LOW'] else 'MEDIUM'
+            elif current_rule and line.startswith('RISK_LEVEL:'):
+                risk = line.replace('RISK_LEVEL:', '').strip().upper()
+                current_analysis["risk_level"] = risk if risk in ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'] else 'MEDIUM'
+            elif current_rule and line.startswith('FUNCTIONAL_AREA:'):
+                current_analysis["functional_area"] = line.replace('FUNCTIONAL_AREA:', '').strip()
+            elif current_rule and line.startswith('CONFIDENCE:'):
+                try:
+                    confidence = float(line.replace('CONFIDENCE:', '').strip())
+                    current_analysis["confidence"] = max(0.0, min(1.0, confidence))
+                except ValueError:
+                    current_analysis["confidence"] = 0.5
+        
+        # Save last rule
+        if current_rule and current_analysis:
+            analyses[current_rule] = current_analysis
+        
+        # Ensure all business rules have analyses (with defaults if missing)
+        for rule in business_rules:
+            if rule.name not in analyses:
+                logger.warning(f"⚠️  No analysis found for rule: {rule.name}, using defaults")
+                analyses[rule.name] = {
+                    "description": f"Business rule analysis not available for {rule.name}",
+                    "priority": "MEDIUM",
+                    "risk_level": "MEDIUM", 
+                    "functional_area": "BUSINESS-LOGIC",
+                    "confidence": 0.5
+                }
+        
+        logger.info(f"📊 Parsed {len(analyses)} rule analyses from batch response")
+        return analyses
     
     def _create_business_rule_analysis_prompt(self, business_logic: str, rule_name: str) -> str:
         """Create a language-agnostic prompt for business rule analysis"""

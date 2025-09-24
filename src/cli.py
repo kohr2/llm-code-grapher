@@ -71,11 +71,12 @@ def cli(ctx, config: Optional[str], verbose: bool):
 @click.option('--neo4j', is_flag=True, help='Insert results into Neo4j database (reads credentials from .env)')
 @click.option('--clear-db', is_flag=True, help='Clear Neo4j database before inserting')
 @click.option('--skip-llm', is_flag=True, help='Skip LLM analysis in Neo4j conversion (faster, less detailed)')
+@click.option('--structured-analysis', is_flag=True, help='Use structured LLM analysis for complete file (requires API key)')
 @click.pass_context
 def analyze(ctx, input_file: str, language: Optional[str], output_dir: Optional[str], 
            output_format: str, confidence_threshold: float,
            provider: Optional[str], model: Optional[str], base_url: Optional[str],
-           neo4j: bool, clear_db: bool, skip_llm: bool):
+           neo4j: bool, clear_db: bool, skip_llm: bool, structured_analysis: bool):
     """Analyze a code file and generate structured output"""
     
     verbose = ctx.obj.get('verbose', False)
@@ -135,16 +136,63 @@ def analyze(ctx, input_file: str, language: Optional[str], output_dir: Optional[
         result = parser.parse(Path(input_file))
         sections = result.sections
         
-        # Analyze with LLM (skip for now due to API issues)
-        log_processing_step("Skipping LLM analysis - using basic business logic")
-        analyzed_sections = []
-        for section in sections:
-            # Use the existing business_logic from parser
-            # The section already has basic business logic extracted
-            analyzed_sections.append(section)
-        
-        # Update result with analyzed sections
-        result.sections = analyzed_sections
+        # Analyze with LLM based on strategy
+        if structured_analysis:
+            log_processing_step("Performing structured LLM analysis on complete file")
+            
+            # Validate LLM configuration for structured analysis
+            if not config.llm.api_key:
+                click.echo("Error: LLM API key is required for structured analysis", err=True)
+                click.echo("Please set OPENAI_API_KEY environment variable or configure in config.yaml", err=True)
+                sys.exit(1)
+            
+            try:
+                # Perform structured analysis on the complete file
+                structured_result = analyzer.analyze_complete_file_structured(code_content, result.program.name)
+                
+                # Convert structured result to parser result format
+                analyzed_sections = []
+                for section_data in structured_result.get("sections", []):
+                    # Create section object from structured data
+                    from lang.cobol.parser.cobol_parser import COBOLSection
+                    section = COBOLSection(
+                        name=section_data.get("name", "UNKNOWN"),
+                        type=section_data.get("type", "UNKNOWN"),
+                        line_range=section_data.get("line_range", (0, 0)),
+                        business_logic=section_data.get("business_logic", ""),
+                        confidence=section_data.get("confidence", 0.5),
+                        complexity_score=section_data.get("complexity_score", 0.5),
+                        risk_level=section_data.get("risk_level", "LOW")
+                    )
+                    analyzed_sections.append(section)
+                
+                # Update result with structured analysis
+                result.sections = analyzed_sections
+                
+                # Store structured result for output generation
+                result.structured_analysis = structured_result
+                
+                log_processing_step(f"Structured analysis completed: {len(structured_result.get('sections', []))} sections, {len(structured_result.get('business_rules', []))} business rules")
+                
+            except Exception as e:
+                log_processing_step(f"Structured analysis failed: {e}")
+                click.echo(f"Warning: Structured analysis failed, falling back to basic analysis: {e}", err=True)
+                
+                # Fallback to basic analysis
+                analyzed_sections = []
+                for section in sections:
+                    analyzed_sections.append(section)
+                result.sections = analyzed_sections
+        else:
+            log_processing_step("Using basic parser analysis (no LLM)")
+            analyzed_sections = []
+            for section in sections:
+                # Use the existing business_logic from parser
+                # The section already has basic business logic extracted
+                analyzed_sections.append(section)
+            
+            # Update result with analyzed sections
+            result.sections = analyzed_sections
         
         # Create analysis result from parser result
         analysis_result = {
@@ -177,6 +225,16 @@ def analyze(ctx, input_file: str, language: Optional[str], output_dir: Optional[
             ],
             "confidence_threshold": confidence_threshold
         }
+        
+        # Add structured analysis data if available
+        if hasattr(result, 'structured_analysis') and result.structured_analysis:
+            analysis_result["structured_analysis"] = result.structured_analysis
+            analysis_result["analysis_strategy"] = "structured_llm"
+            analysis_result["business_rules"] = result.structured_analysis.get("business_rules", [])
+            analysis_result["data_elements"] = result.structured_analysis.get("data_elements", [])
+            analysis_result["overview"] = result.structured_analysis.get("overview", "")
+        else:
+            analysis_result["analysis_strategy"] = "parser_only"
         
         # Generate outputs
         log_processing_step("Generating outputs")
