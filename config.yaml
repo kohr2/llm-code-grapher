@@ -15,6 +15,13 @@ processing:
   parallel_sections: true
   confidence_threshold: 0.7
 
+dependency_filtering:
+  enabled: true
+  max_line_distance: 50
+  max_operations_between: 10
+  skip_common_params: true
+  common_param_prefixes: ["ws-", "ws_", "working-storage", "file-", "file_", "input-", "output-", "temp-", "temp_"]
+
 language:
   # Language-specific patterns will be loaded dynamically based on the language being analyzed
   # This section is populated at runtime by the language-specific modules

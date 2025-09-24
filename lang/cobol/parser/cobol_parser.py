@@ -117,9 +117,11 @@ class COBOLParserResult(BaseParserResult):
 class COBOLParser(BaseParser):
     """Parses COBOL programs and extracts structural information"""
     
-    def __init__(self):
+    def __init__(self, config: Optional[Dict[str, Any]] = None):
         """Initialize the COBOL parser"""
         super().__init__("COBOL")
+        self.config = config or {}
+        self.dependency_config = self.config.get('dependency_filtering', {})
     
     def _get_section_patterns(self) -> Dict[str, str]:
         """Get COBOL-specific section patterns"""
@@ -618,15 +620,53 @@ class COBOLParser(BaseParser):
                 
             other_params = set(other_op.parameters)
             
-            # Check for parameter overlap (data dependency)
-            if current_params & other_params:
-                dependencies.append(other_op)
+            # Check for parameter overlap (data dependency) - but be more selective
+            param_overlap = current_params & other_params
+            if param_overlap:
+                # Only create dependency if there's a meaningful data flow
+                if self._is_meaningful_data_dependency(current_op, other_op, param_overlap):
+                    dependencies.append(other_op)
             
             # Check for specific operation type dependencies
             if self._has_operation_dependency(current_op, other_op):
                 dependencies.append(other_op)
         
         return dependencies
+    
+    def _is_meaningful_data_dependency(self, current_op: COBOLOperation, other_op: COBOLOperation, param_overlap: set) -> bool:
+        """Check if there's a meaningful data dependency between operations"""
+        # Check if dependency filtering is enabled
+        if not self.dependency_config.get('enabled', True):
+            return True
+        
+        # Skip dependencies on very common parameters that don't indicate real data flow
+        if self.dependency_config.get('skip_common_params', True):
+            common_params = set(self.dependency_config.get('common_param_prefixes', 
+                ['ws-', 'ws_', 'working-storage', 'file-', 'file_', 'input-', 'output-', 'temp-', 'temp_']))
+            
+            # If all overlapping parameters are common, skip this dependency
+            if all(any(param.lower().startswith(common) for common in common_params) for param in param_overlap):
+                return False
+        
+        # Only create dependency if the other operation actually modifies data
+        modifying_operations = {'MOVE', 'ADD', 'SUBTRACT', 'MULTIPLY', 'DIVIDE', 'COMPUTE', 'INITIALIZE', 'ACCEPT'}
+        if other_op.operation_type not in modifying_operations:
+            return False
+        
+        # Skip if operations are too far apart
+        max_line_distance = self.dependency_config.get('max_line_distance', 50)
+        line_distance = current_op.line_range[0] - other_op.line_range[0]
+        if line_distance > max_line_distance:
+            return False
+        
+        # Skip if there are too many operations between them (indicates weak coupling)
+        max_operations_between = self.dependency_config.get('max_operations_between', 10)
+        operations_between = sum(1 for op in self._temp_operations 
+                               if other_op.line_range[0] < op.line_range[0] < current_op.line_range[0])
+        if operations_between > max_operations_between:
+            return False
+        
+        return True
     
     def _has_operation_dependency(self, current_op: COBOLOperation, other_op: COBOLOperation) -> bool:
         """Check if current operation has a specific dependency on other operation"""

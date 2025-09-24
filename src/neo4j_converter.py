@@ -298,20 +298,10 @@ class ParserResultConverter:
         return priority, risk_level
     
     def _create_business_rule_relationships(self, result: BaseParserResult, program_id: str) -> List[CodeRelationship]:
-        """Create relationships between sections and business rules"""
+        """Create relationships between sections/subsections and business rules using line-based analysis"""
         relationships = []
         
-        # Find the fraud rules section
-        fraud_rules_section_id = None
-        for i, section in enumerate(result.sections):
-            if section.name and 'EXECUTE-FRAUD-RULES' in section.name:
-                fraud_rules_section_id = f"section_{i + 1}"
-                break
-        
-        if not fraud_rules_section_id:
-            return relationships
-        
-        # Create IMPLEMENTS relationships between fraud rules section and business rules
+        # Extract fraud rules and create relationships
         fraud_rules = []
         seen_rules = set()
         
@@ -329,26 +319,75 @@ class ParserResultConverter:
                 
                 if rule_type and rule_type not in seen_rules:
                     seen_rules.add(rule_type)
-                    fraud_rules.append(subsection)
+                    fraud_rules.append((rule_type, subsection))
         
-        for i, rule in enumerate(fraud_rules):
+        # Create relationships for each business rule using line-based analysis
+        for i, (rule_type, rule) in enumerate(fraud_rules):
             rule_id = f"rule_{i + 1}"
             
-            # Create IMPLEMENTS relationship
-            rel = CodeRelationship(
-                source_id=fraud_rules_section_id,
-                target_id=rule_id,
-                relationship_type="IMPLEMENTS",
-                properties={
-                    "description": f"Section implements {rule.name}",
-                    "confidence": 1.0,
-                    "rule_name": rule.name,
-                    "parent_section": getattr(rule, 'parent_section', 'UNKNOWN')
-                }
-            )
-            relationships.append(rel)
+            # Strategy: Use semantic distribution for better visualization
+            # Map business rules to their logical functional areas
+            logical_section = self._get_logical_section_for_rule(rule_type, result.sections)
+            
+            if logical_section:
+                # Create relationship to the logical functional section
+                section_id = self._get_section_id(logical_section, result.sections)
+                rel = CodeRelationship(
+                    source_id=section_id,
+                    target_id=rule_id,
+                    relationship_type="IMPLEMENTS",
+                    properties={
+                        "description": f"Section {logical_section.name} implements {rule_type}",
+                        "confidence": 1.0,
+                        "rule_name": rule.name,
+                        "rule_type": rule_type,
+                        "logical_section": logical_section.name,
+                        "semantic_mapping": True,
+                        "rule_start_line": rule.line_range[0],
+                        "rule_end_line": rule.line_range[1]
+                    }
+                )
+                relationships.append(rel)
+            
+            # Also create direct IMPLEMENTS relationship from subsection to business rule
+            subsection_id = None
+            for j, subsection in enumerate(result.subsections):
+                if subsection.name == rule.name:
+                    subsection_id = f"subsection_{j + 1}"
+                    break
+            
+            if subsection_id:
+                # Create direct IMPLEMENTS relationship from subsection to business rule
+                rel = CodeRelationship(
+                    source_id=subsection_id,
+                    target_id=rule_id,
+                    relationship_type="IMPLEMENTS",
+                    properties={
+                        "description": f"Subsection {rule.name} implements business rule",
+                        "confidence": 1.0,
+                        "rule_name": rule.name,
+                        "rule_type": rule_type,
+                        "subsection_name": rule.name,
+                        "granular_implementation": True
+                    }
+                )
+                relationships.append(rel)
         
         return relationships
+    
+    def _find_containing_section(self, rule_line_number: int, sections: List) -> Optional[Any]:
+        """Find which section contains a business rule based on line numbers"""
+        for section in sections:
+            if section.line_range[0] <= rule_line_number <= section.line_range[1]:
+                return section
+        return None
+    
+    def _get_section_id(self, section: Any, sections: List) -> str:
+        """Get the section ID for a given section object"""
+        for i, s in enumerate(sections):
+            if s.name == section.name and s.line_range == section.line_range:
+                return f"section_{i + 1}"
+        return "unknown_section"
     
     def _create_operation_nodes(self, result: BaseParserResult, program_id: str) -> List[CodeNode]:
         """Create operation nodes from parser result"""
@@ -649,9 +688,10 @@ class ParserResultConverter:
         
         if any(pattern in name.lower() for pattern in operation_patterns):
             # This looks like an operation name, try to find matching operation
-            for i, node in enumerate(self._current_graph_data.nodes):
+            # Find the operation by name and return its actual node_id
+            for node in self._current_graph_data.nodes:
                 if node.name == name and node.node_type == "Operation":
-                    return f"operation_{i + 1}"
+                    return node.node_id
         
         # If it contains common section keywords, treat as section
         section_keywords = ['SECTION', 'PARA', 'PROCEDURE']

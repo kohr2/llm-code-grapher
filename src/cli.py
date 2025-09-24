@@ -110,7 +110,7 @@ def analyze(ctx, input_file: str, language: Optional[str], output_dir: Optional[
         if base_url:
             config.llm.base_url = base_url
         
-        parser = ParserClass()
+        parser = ParserClass(config.__dict__)
         analyzer = AnalyzerClass(config.llm)
         ontology = OntologyClass()
         
