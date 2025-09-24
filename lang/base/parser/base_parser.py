@@ -222,11 +222,24 @@ class BaseParser(ABC):
         return len(lines) - 1
     
     def _find_parent_section(self, sections: List[BaseSection], line_number: int) -> str:
-        """Find the parent section for a subsection based on line ranges"""
-        for section in reversed(sections):
+        """Find the immediate parent section for a subsection based on line ranges"""
+        # Find all sections that contain this line number
+        containing_sections = []
+        for section in sections:
             if section.line_range[0] <= line_number + 1 <= section.line_range[1]:
-                return section.name
-        return "UNKNOWN"
+                containing_sections.append(section)
+        
+        if not containing_sections:
+            return "UNKNOWN"
+        
+        # If only one section contains it, return that
+        if len(containing_sections) == 1:
+            return containing_sections[0].name
+        
+        # If multiple sections contain it, find the most specific (smallest range)
+        # This ensures we get the immediate parent, not a higher-level division
+        immediate_parent = min(containing_sections, key=lambda s: s.line_range[1] - s.line_range[0])
+        return immediate_parent.name
     
     def _extract_business_logic(self, lines: List[str], start_line: int, end_line: int) -> str:
         """Extract business logic from a code section (generic implementation)"""

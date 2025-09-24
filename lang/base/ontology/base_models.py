@@ -4,7 +4,7 @@ Abstract base classes for program analysis across all languages
 """
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional, Union
 from enum import Enum
 
@@ -99,6 +99,36 @@ class BaseSubsection(ABC):
             "complexity_score": self.complexity_score,
             "risk_level": self.risk_level.value if isinstance(self.risk_level, RiskLevel) else self.risk_level
         }
+
+
+@dataclass
+class BaseOperation(ABC):
+    """Abstract base class for operation representation"""
+    name: str
+    operation_type: str  # READ, ADD, IF, DISPLAY, etc.
+    parent_subsection: str
+    line_range: tuple[int, int]
+    line_count: int
+    business_logic: str
+    confidence: float
+    complexity_score: float
+    risk_level: RiskLevel
+    parameters: List[str] = field(default_factory=list)  # Operation parameters
+    metadata: Optional[Dict[str, Any]] = None
+    
+    def get_operation_metrics(self) -> Dict[str, Any]:
+        """Get operation-specific metrics (default implementation)"""
+        return {
+            "operation_type": self.operation_type,
+            "line_count": self.line_count,
+            "complexity_score": self.complexity_score,
+            "risk_level": self.risk_level.value if isinstance(self.risk_level, RiskLevel) else self.risk_level,
+            "parameter_count": len(self.parameters)
+        }
+    
+    def get_dependencies(self) -> List[str]:
+        """Get list of dependencies for this operation (default implementation)"""
+        return []
 
 
 @dataclass

@@ -1,0 +1,274 @@
+================================================================================
+COBOL CODE ANALYSIS SUMMARY
+================================================================================
+
+Program: FRAUD
+Total Sections: 0
+Total Subsections: 0
+
+SECTIONS:
+----------------------------------------
+RELATIONSHIPS:
+----------------------------------------
+• CURRENT-PROGRAM → 1000 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 2000 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 9000 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 1100 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 1200 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 1300 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 4100 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 4200 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 4300 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 4400 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 4210 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 4220 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 4230 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 4310 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 4320 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 4330 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 4410 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 4420 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 5100 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 5200 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 5300 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 5400 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 6100 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 6200 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 6300 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 2100 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → UNTIL (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 2200 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 2100 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 2300 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 2400 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 2500 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 2600 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 2700 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 2800 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 2900 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 3000 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 2310 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 2610 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 2620 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 2630 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 2640 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 2650 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 2660 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 2670 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 2680 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 2690 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 2695 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 2621 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 2631 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 2651 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 2810 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 7100 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 7200 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 7300 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 8100 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 8200 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 9100 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 9200 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 2100 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → UNTIL (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 2200 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 2100 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 2300 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 2400 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 2500 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 2600 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 2700 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 2800 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 2900 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 3000 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 2310 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 2610 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 2620 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 2630 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 2640 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 2650 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 2660 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 2670 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 2680 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 2690 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 2695 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 2621 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 2631 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 2651 (PERFORM)
+  Confidence: 0.90
+
+• CURRENT-PROGRAM → 2810 (PERFORM)
+  Confidence: 0.90
+
+
+================================================================================
+Generated: 2025-09-23 18:15:51
+================================================================================
