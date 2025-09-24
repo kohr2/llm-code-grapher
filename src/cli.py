@@ -7,6 +7,7 @@ Supports multiple programming languages through language-agnostic architecture.
 
 import click
 import sys
+import logging
 from pathlib import Path
 from typing import Optional
 
@@ -25,6 +26,20 @@ def cli(ctx, config: Optional[str], verbose: bool):
     """LLM Code Grapher - Analyze code structure using LLMs"""
     ctx.ensure_object(dict)
     ctx.obj['verbose'] = verbose
+    
+    # Configure logging based on verbose flag
+    if verbose:
+        logging.basicConfig(
+            level=logging.INFO,
+            format='%(asctime)s - %(levelname)s - %(message)s',
+            handlers=[logging.StreamHandler(sys.stdout)]
+        )
+    else:
+        logging.basicConfig(
+            level=logging.WARNING,
+            format='%(levelname)s - %(message)s',
+            handlers=[logging.StreamHandler(sys.stdout)]
+        )
     
     if config:
         # Load custom config file
@@ -55,11 +70,12 @@ def cli(ctx, config: Optional[str], verbose: bool):
 @click.option('--base-url', help='Base URL for local providers like Ollama')
 @click.option('--neo4j', is_flag=True, help='Insert results into Neo4j database (reads credentials from .env)')
 @click.option('--clear-db', is_flag=True, help='Clear Neo4j database before inserting')
+@click.option('--skip-llm', is_flag=True, help='Skip LLM analysis in Neo4j conversion (faster, less detailed)')
 @click.pass_context
 def analyze(ctx, input_file: str, language: Optional[str], output_dir: Optional[str], 
            output_format: str, confidence_threshold: float,
            provider: Optional[str], model: Optional[str], base_url: Optional[str],
-           neo4j: bool, clear_db: bool):
+           neo4j: bool, clear_db: bool, skip_llm: bool):
     """Analyze a code file and generate structured output"""
     
     verbose = ctx.obj.get('verbose', False)
@@ -180,8 +196,31 @@ def analyze(ctx, input_file: str, language: Optional[str], output_dir: Optional[
                 result.program.language = language.upper()
                 result.program.line_count = len(code_content.split('\n'))
                 
-                # Convert to Neo4j format
-                graph_data = convert_parser_result_to_neo4j(result)
+                # Convert to Neo4j format with LLM configuration
+                from lang.base.parser.llm_provider import LLMProviderConfig
+                
+                if skip_llm:
+                    # Skip LLM analysis - use None config for faster conversion
+                    llm_config = None
+                    log_processing_step("Skipping LLM analysis for faster Neo4j conversion")
+                else:
+                    llm_config = LLMProviderConfig(
+                        provider=config.llm.provider,
+                        model=config.llm.model,
+                        api_key=config.llm.api_key,
+                        base_url=config.llm.base_url,
+                        max_tokens=config.llm.max_tokens,
+                        temperature=config.llm.temperature
+                    )
+                    
+                    # Validate LLM configuration
+                    if not llm_config.api_key:
+                        click.echo("Error: LLM API key is required for Neo4j conversion with business rule analysis", err=True)
+                        click.echo("Please set OPENAI_API_KEY environment variable or configure in config.yaml", err=True)
+                        click.echo("Alternatively, use --skip-llm flag for faster conversion without LLM analysis", err=True)
+                        sys.exit(1)
+                
+                graph_data = convert_parser_result_to_neo4j(result, llm_config, language)
                 
                 log_processing_step("Connecting to Neo4j database")
                 db = create_neo4j_database()

@@ -444,106 +444,20 @@ class FraudManagementOntology:
         return data_items
     
     def _create_business_rules(self) -> List[FraudManagementBusinessRule]:
-        """Create business rules representing the 10 fraud detection rules"""
+        """Create business rules dynamically analyzed from COBOL code sections"""
         rules = []
         
-        # Rule 1: High Amount Transaction
+        # Note: Business rules are now dynamically generated through LLM analysis
+        # This method provides example rule structure for demonstration purposes
+        # In production, rules are extracted from actual COBOL code sections
+        
+        # Example dynamic rule structure
         rules.append(FraudManagementBusinessRule(
-            rule_id="RULE-01",
-            description="High Amount Transaction - Detects transactions exceeding suspicious amount threshold",
+            rule_id="DYNAMIC_RULE_001",
+            description="LLM-analyzed business rule from code section",
             scope="TRANSACTION_PROCESSING",
             confidence=0.9,
             risk_level=RiskLevel.MEDIUM,
-            priority="HIGH"
-        ))
-        
-        # Rule 2: Velocity Check
-        rules.append(FraudManagementBusinessRule(
-            rule_id="RULE-02",
-            description="Transaction Velocity Analysis - Monitors hourly and daily transaction frequency",
-            scope="TRANSACTION_PROCESSING",
-            confidence=0.9,
-            risk_level=RiskLevel.MEDIUM,
-            priority="HIGH"
-        ))
-        
-        # Rule 3: Location Variance
-        rules.append(FraudManagementBusinessRule(
-            rule_id="RULE-03",
-            description="Geographical Location Analysis - Detects unusual location patterns",
-            scope="TRANSACTION_PROCESSING",
-            confidence=0.85,
-            risk_level=RiskLevel.MEDIUM,
-            priority="MEDIUM"
-        ))
-        
-        # Rule 4: Merchant Risk
-        rules.append(FraudManagementBusinessRule(
-            rule_id="RULE-04",
-            description="Merchant Risk Assessment - Evaluates merchant risk levels and categories",
-            scope="TRANSACTION_PROCESSING",
-            confidence=0.8,
-            risk_level=RiskLevel.LOW,
-            priority="MEDIUM"
-        ))
-        
-        # Rule 5: Time Pattern
-        rules.append(FraudManagementBusinessRule(
-            rule_id="RULE-05",
-            description="Unusual Time Pattern - Detects transactions at unusual times",
-            scope="TRANSACTION_PROCESSING",
-            confidence=0.8,
-            risk_level=RiskLevel.LOW,
-            priority="LOW"
-        ))
-        
-        # Rule 6: Card Not Present
-        rules.append(FraudManagementBusinessRule(
-            rule_id="RULE-06",
-            description="Card Not Present Risk - Higher risk for online/telephone transactions",
-            scope="TRANSACTION_PROCESSING",
-            confidence=0.9,
-            risk_level=RiskLevel.MEDIUM,
-            priority="HIGH"
-        ))
-        
-        # Rule 7: Suspicious Category
-        rules.append(FraudManagementBusinessRule(
-            rule_id="RULE-07",
-            description="Suspicious Category Combinations - Multiple merchant categories",
-            scope="TRANSACTION_PROCESSING",
-            confidence=0.8,
-            risk_level=RiskLevel.MEDIUM,
-            priority="MEDIUM"
-        ))
-        
-        # Rule 8: Customer Behavior
-        rules.append(FraudManagementBusinessRule(
-            rule_id="RULE-08",
-            description="Customer Behavioral Analysis - Analyzes customer spending patterns",
-            scope="TRANSACTION_PROCESSING",
-            confidence=0.85,
-            risk_level=RiskLevel.HIGH,
-            priority="HIGH"
-        ))
-        
-        # Rule 9: Account Age
-        rules.append(FraudManagementBusinessRule(
-            rule_id="RULE-09",
-            description="New Account Risk - Higher risk for new accounts",
-            scope="TRANSACTION_PROCESSING",
-            confidence=0.9,
-            risk_level=RiskLevel.MEDIUM,
-            priority="MEDIUM"
-        ))
-        
-        # Rule 10: Cross Validation
-        rules.append(FraudManagementBusinessRule(
-            rule_id="RULE-10",
-            description="Cross-validation of multiple risk factors - Combines multiple rule triggers",
-            scope="TRANSACTION_PROCESSING",
-            confidence=0.9,
-            risk_level=RiskLevel.HIGH,
             priority="HIGH"
         ))
         

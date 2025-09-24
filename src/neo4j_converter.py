@@ -13,6 +13,7 @@ except ImportError:
     from neo4j_models import CodeNode, CodeRelationship, GraphData
 
 from lang.base.parser.base_parser import BaseParserResult
+from lang.base.parser.llm_provider import LLMProviderConfig, LLMProviderFactory
 
 logger = logging.getLogger(__name__)
 
@@ -20,10 +21,56 @@ logger = logging.getLogger(__name__)
 class ParserResultConverter:
     """Converts parser results to Neo4j graph data"""
     
-    def __init__(self):
-        """Initialize the converter"""
+    def __init__(self, llm_config: Optional[LLMProviderConfig], language: str = "cobol"):
+        """Initialize the converter with optional LLM configuration and language"""
         self.node_counter = 0
         self.relationship_counter = 0
+        self.llm_config = llm_config
+        self.language = language.lower()
+        self.analyzer = None
+        
+        # LLM call tracking
+        self.llm_call_count = 0
+        self.total_llm_time = 0.0
+        
+        # Setup LLM conversation logging
+        if llm_config:
+            import datetime
+            import os
+            
+            # Create logs directory if it doesn't exist
+            logs_dir = "logs/llm_conversations"
+            os.makedirs(logs_dir, exist_ok=True)
+            
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            self.conversation_log_file = os.path.join(logs_dir, f"conversations_{timestamp}.log")
+            logger.info(f"📝 LLM conversations will be logged to: {self.conversation_log_file}")
+        else:
+            self.conversation_log_file = None
+        
+        # Initialize language-specific LLM analyzer only if config provided
+        if llm_config:
+            try:
+                self.analyzer = self._get_language_analyzer()
+                logger.info(f"LLM analyzer initialized successfully for {self.language}")
+            except Exception as e:
+                logger.error(f"Failed to initialize LLM analyzer for {self.language}: {e}")
+                raise RuntimeError(f"Failed to initialize LLM analyzer for {self.language}: {e}")
+        else:
+            logger.info(f"LLM analysis disabled - using basic business rule detection for {self.language}")
+    
+    def _get_language_analyzer(self):
+        """Get the appropriate language-specific analyzer"""
+        try:
+            # Dynamically import the language-specific analyzer
+            analyzer_module = __import__(f"lang.{self.language}.parser.llm_analyzer", fromlist=[f"{self.language.upper()}Analyzer"])
+            analyzer_class = getattr(analyzer_module, f"{self.language.upper()}Analyzer")
+            return analyzer_class(self.llm_config)
+        except ImportError:
+            # Fallback to base analyzer if language-specific one doesn't exist
+            logger.warning(f"No language-specific analyzer found for {self.language}, using base analyzer")
+            from lang.base.parser.base_llm_analyzer import BaseLLMAnalyzer
+            return BaseLLMAnalyzer(self.language, self.llm_config)
     
     def _generate_node_id(self, prefix: str) -> str:
         """Generate a unique node ID"""
@@ -34,6 +81,43 @@ class ParserResultConverter:
         """Generate a unique relationship ID"""
         self.relationship_counter += 1
         return f"rel_{self.relationship_counter}"
+    
+    def _log_conversation(self, call_type: str, subsection_name: str, prompt: str, response: str, duration: float):
+        """Log LLM conversation to file"""
+        if not self.conversation_log_file:
+            return
+            
+        import datetime
+        import inspect
+        
+        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
+        # Get the calling function and call stack
+        stack = inspect.stack()
+        calling_function = stack[1].function if len(stack) > 1 else "unknown"
+        calling_file = stack[1].filename if len(stack) > 1 else "unknown"
+        calling_line = stack[1].lineno if len(stack) > 1 else "unknown"
+        
+        # Get the full call stack (up to 5 levels)
+        call_stack = []
+        for i, frame in enumerate(stack[1:6]):  # Skip current function, limit to 5 levels
+            call_stack.append(f"  {i+1}. {frame.filename}:{frame.lineno} in {frame.function}()")
+        
+        with open(self.conversation_log_file, "a", encoding="utf-8") as f:
+            f.write(f"\n{'='*80}\n")
+            f.write(f"TIMESTAMP: {timestamp}\n")
+            f.write(f"CALL TYPE: {call_type}\n")
+            f.write(f"SUBSECTION: {subsection_name}\n")
+            f.write(f"DURATION: {duration:.3f}s\n")
+            f.write(f"LLM CALL #{self.llm_call_count}\n")
+            f.write(f"TRIGGERED BY: {calling_function}() in {calling_file}:{calling_line}\n")
+            f.write(f"CALL STACK:\n")
+            f.write(f"\n".join(call_stack))
+            f.write(f"\n{'='*80}\n")
+            f.write(f"\nPROMPT:\n{prompt}\n")
+            f.write(f"\n{'='*40}\n")
+            f.write(f"\nRESPONSE:\n{response}\n")
+            f.write(f"\n{'='*80}\n")
     
     def convert_parser_result(self, result: BaseParserResult) -> GraphData:
         """Convert a parser result to GraphData"""
@@ -77,6 +161,20 @@ class ParserResultConverter:
             graph_data.add_relationship(rel)
         
         logger.info(f"Converted parser result: {graph_data.node_count} nodes, {graph_data.relationship_count} relationships")
+        
+        # Log LLM call summary
+        if self.llm_config and self.llm_call_count > 0:
+            avg_time = self.total_llm_time / self.llm_call_count
+            logger.info(f"📊 LLM CALL SUMMARY:")
+            logger.info(f"   Total LLM calls: {self.llm_call_count}")
+            logger.info(f"   Total LLM time: {self.total_llm_time:.3f}s")
+            logger.info(f"   Average call time: {avg_time:.3f}s")
+            logger.info(f"   LLM time per node: {self.total_llm_time/graph_data.node_count:.3f}s")
+        elif self.llm_config:
+            logger.info(f"📊 LLM CALL SUMMARY: No LLM calls made (all subsections skipped or failed)")
+        else:
+            logger.info(f"📊 LLM CALL SUMMARY: LLM analysis disabled (--skip-llm flag used)")
+        
         return graph_data
     
     def _create_program_node(self, result: BaseParserResult) -> CodeNode:
@@ -198,46 +296,65 @@ class ParserResultConverter:
         """Create business rule nodes from fraud rule subsections in parser result"""
         nodes = []
         
-        # Extract fraud rules from subsections and deduplicate by rule name
-        fraud_rules = []
+        # Extract business rules from subsections using LLM analysis
+        business_rules = []
         seen_rules = set()
+        total_subsections = len(result.subsections)
         
-        for subsection in result.subsections:
-            if subsection.name and 'RULE-' in subsection.name:
-                # Extract the rule type (e.g., "RULE-HIGH-AMOUNT" from "2610-RULE-HIGH-AMOUNT")
-                rule_type = None
-                for rule_key in ["RULE-HIGH-AMOUNT", "RULE-VELOCITY-CHECK", "RULE-LOCATION-VARIANCE", 
-                               "RULE-MERCHANT-RISK", "RULE-TIME-PATTERN", "RULE-CARD-NOT-PRESENT", 
-                               "RULE-SUSPICIOUS-CATEGORY", "RULE-CUSTOMER-BEHAVIOR", "RULE-ACCOUNT-AGE", 
-                               "RULE-CROSS-VALIDATION"]:
-                    if rule_key in subsection.name:
-                        rule_type = rule_key
-                        break
-                
-                if rule_type and rule_type not in seen_rules:
-                    seen_rules.add(rule_type)
-                    fraud_rules.append(subsection)
+        logger.info(f"🔍 Starting business rule analysis for {total_subsections} subsections...")
+        
+        for i, subsection in enumerate(result.subsections, 1):
+            logger.info(f"📊 Progress: {i}/{total_subsections} - Checking subsection: {subsection.name}")
+            
+            # Use LLM to determine if this subsection contains a business rule
+            if self._is_business_rule(subsection):
+                logger.info(f"✅ Found business rule: {subsection.name}")
+                rule_name = subsection.name or f"UNNAMED_RULE_{len(business_rules) + 1}"
+                if rule_name not in seen_rules:
+                    seen_rules.add(rule_name)
+                    business_rules.append(subsection)
+            else:
+                logger.info(f"❌ Not a business rule: {subsection.name}")
+        
+        logger.info(f"🎯 Business rule detection complete: {len(business_rules)} business rules found out of {total_subsections} subsections")
         
         # Create business rule nodes
-        for i, rule in enumerate(fraud_rules):
-            # Extract rule ID from subsection name (e.g., "2610-RULE-HIGH-AMOUNT" -> "RULE-01")
-            rule_id = f"RULE-{i+1:02d}"
+        logger.info(f"🚀 Starting detailed analysis of {len(business_rules)} business rules...")
+        
+        for i, rule in enumerate(business_rules, 1):
+            logger.info(f"📝 Analyzing business rule {i}/{len(business_rules)}: {rule.name}")
+            # Generate dynamic rule ID based on analysis
+            rule_id = f"DYNAMIC_RULE_{i+1:03d}"
             
-            # Extract rule description from business logic
-            description = self._extract_rule_description(rule.business_logic, rule.name)
-            
-            # Determine priority and risk level based on rule type
-            priority, risk_level = self._determine_rule_priority_and_risk(rule.name)
+            try:
+                # Analyze business rule using LLM
+                analysis = self._analyze_business_rule_with_llm(rule.business_logic, rule.name)
+                description = analysis["description"]
+                priority = analysis["priority"]
+                risk_level = analysis["risk_level"]
+                functional_area = analysis["functional_area"]
+                analysis_confidence = analysis["confidence"]
+                analysis_method = "LLM"
+            except Exception as e:
+                logger.error(f"Failed to analyze business rule {rule.name}: {e}")
+                # Skip this rule if LLM analysis fails
+                continue
             
             properties = {
                 "description": description,
                 "priority": priority,
                 "risk_level": risk_level,
+                "functional_area": functional_area,
                 "business_impact": "CRITICAL",
                 "detection_accuracy": "85-90%",
-                "line_range": getattr(rule, 'line_range', [0, 0]),
                 "confidence": getattr(rule, 'confidence', 0.0),
-                "parent_section": getattr(rule, 'parent_section', 'UNKNOWN')
+                "analysis_confidence": analysis_confidence,
+                "analysis_method": analysis_method,
+                "location": {
+                    "line_range": list(getattr(rule, 'line_range', [0, 0])),
+                    "line_count": getattr(rule, 'line_range', [0, 0])[1] - getattr(rule, 'line_range', [0, 0])[0] + 1,
+                    "containing_section": getattr(rule, 'parent_section', 'UNKNOWN')
+                }
             }
             
             # Remove None values
@@ -254,97 +371,245 @@ class ParserResultConverter:
         
         return nodes
     
-    def _extract_rule_description(self, business_logic: str, rule_name: str) -> str:
-        """Extract rule description from business logic"""
-        # Map rule names to descriptions
-        rule_descriptions = {
-            "RULE-HIGH-AMOUNT": "High Amount Transaction - Detects transactions exceeding suspicious amount threshold",
-            "RULE-VELOCITY-CHECK": "Transaction Velocity Analysis - Monitors hourly and daily transaction frequency",
-            "RULE-LOCATION-VARIANCE": "Geographical Location Analysis - Detects unusual location patterns",
-            "RULE-MERCHANT-RISK": "Merchant Risk Assessment - Evaluates merchant risk levels and categories",
-            "RULE-TIME-PATTERN": "Unusual Time Pattern - Detects transactions at unusual times",
-            "RULE-CARD-NOT-PRESENT": "Card Not Present Risk - Higher risk for online/telephone transactions",
-            "RULE-SUSPICIOUS-CATEGORY": "Suspicious Category Combinations - Multiple merchant categories",
-            "RULE-CUSTOMER-BEHAVIOR": "Customer Behavioral Analysis - Analyzes customer spending patterns",
-            "RULE-ACCOUNT-AGE": "New Account Risk - Higher risk for new accounts",
-            "RULE-CROSS-VALIDATION": "Cross-validation of multiple risk factors - Combines multiple rule triggers"
-        }
+    def _is_business_rule(self, subsection) -> bool:
+        """Use LLM to determine if a subsection contains a business rule"""
+        if not subsection.business_logic or not subsection.name:
+            logger.debug(f"🔍 Skipping subsection {subsection.name}: missing business_logic or name")
+            return False
         
-        # Try to find matching rule name
-        for rule_key, description in rule_descriptions.items():
-            if rule_key in rule_name:
-                return description
+        import time
+        start_time = time.time()
         
-        # Fallback: extract from business logic comment
-        if "Rule" in business_logic:
-            lines = business_logic.split('\n')
-            for line in lines:
-                if "Rule" in line and ":" in line:
-                    return line.split(":", 1)[1].strip()
-        
-        return f"Business rule: {rule_name}"
+        try:
+            logger.info(f"🔍 Checking if subsection '{subsection.name}' is a business rule")
+            logger.info(f"📝 Subsection code length: {len(subsection.business_logic)} characters")
+            
+            # Create a simple prompt to determine if this is a business rule
+            prompt = f"""
+{self.language.upper()} code:
+Name: {subsection.name}
+Code: {subsection.business_logic}
+
+Is this a business rule? (validation, constraint, decision, policy)
+Answer: YES or NO
+"""
+            
+            logger.info(f"🤖 Making LLM call to check if '{subsection.name}' is a business rule")
+            llm_start = time.time()
+            response = self.analyzer.provider.generate_response([{"role": "user", "content": prompt}])
+            llm_time = time.time() - llm_start
+            
+            # Track LLM call statistics
+            self.llm_call_count += 1
+            self.total_llm_time += llm_time
+            
+            result = response.strip().upper().startswith("YES")
+            total_time = time.time() - start_time
+            
+            logger.info(f"⚡ Business rule check completed for '{subsection.name}' in {llm_time:.3f}s (total: {total_time:.3f}s)")
+            logger.info(f"📄 Response: {response.strip()[:50]}... -> {'YES' if result else 'NO'}")
+            logger.info(f"📊 LLM Call #{self.llm_call_count} | Total LLM time: {self.total_llm_time:.3f}s | Avg: {self.total_llm_time/self.llm_call_count:.3f}s")
+            
+            # Log conversation to file
+            self._log_conversation("BUSINESS_RULE_CHECK", subsection.name, prompt, response, llm_time)
+            
+            return result
+            
+        except Exception as e:
+            total_time = time.time() - start_time
+            logger.warning(f"❌ Failed to analyze if subsection {subsection.name} is a business rule after {total_time:.3f}s: {e}")
+            # Fallback: check for common business rule patterns
+            fallback_result = self._has_business_rule_patterns(subsection)
+            logger.info(f"🔄 Using fallback pattern matching for '{subsection.name}': {'YES' if fallback_result else 'NO'}")
+            return fallback_result
     
-    def _determine_rule_priority_and_risk(self, rule_name: str) -> tuple[str, str]:
-        """Determine priority and risk level for a business rule"""
-        # High priority rules
-        high_priority_rules = ["RULE-HIGH-AMOUNT", "RULE-VELOCITY-CHECK", "RULE-CARD-NOT-PRESENT", "RULE-CUSTOMER-BEHAVIOR"]
+    def _has_business_rule_patterns(self, subsection) -> bool:
+        """Fallback method to detect business rule patterns"""
+        name = subsection.name.upper() if subsection.name else ""
+        logic = subsection.business_logic.upper()
         
-        # High risk rules
-        high_risk_rules = ["RULE-CUSTOMER-BEHAVIOR", "RULE-CROSS-VALIDATION"]
+        # Common business rule patterns across languages
+        rule_patterns = [
+            "RULE", "VALIDATE", "CHECK", "VERIFY", "CONDITION", 
+            "IF", "WHEN", "UNLESS", "POLICY", "CONSTRAINT"
+        ]
         
-        priority = "HIGH" if any(rule in rule_name for rule in high_priority_rules) else "MEDIUM"
-        risk_level = "HIGH" if any(rule in rule_name for rule in high_risk_rules) else "MEDIUM"
+        return any(pattern in name or pattern in logic for pattern in rule_patterns)
+    
+    def _analyze_business_rule_with_llm(self, business_logic: str, rule_name: str) -> Dict[str, Any]:
+        """Analyze business rule using LLM - dynamic analysis only"""
+        if not self.analyzer:
+            logger.error(f"LLM analyzer not available for rule: {rule_name}")
+            raise RuntimeError("LLM analyzer is required but not initialized. Please provide LLM configuration.")
         
-        return priority, risk_level
+        import time
+        start_time = time.time()
+        
+        try:
+            logger.info(f"🚀 Starting LLM analysis for rule: {rule_name}")
+            logger.info(f"📝 Business logic length: {len(business_logic)} characters")
+            
+            # Create a specialized prompt for business rule analysis
+            prompt_start = time.time()
+            prompt = self._create_business_rule_analysis_prompt(business_logic, rule_name)
+            prompt_time = time.time() - prompt_start
+            
+            logger.info(f"📋 Prompt created in {prompt_time:.3f}s (length: {len(prompt)} chars)")
+            
+            # Use the analyzer's provider to get response
+            llm_start = time.time()
+            logger.info(f"🤖 Making LLM API call for rule: {rule_name}")
+            response = self.analyzer.provider.generate_response([{"role": "user", "content": prompt}])
+            llm_time = time.time() - llm_start
+            
+            # Track LLM call statistics
+            self.llm_call_count += 1
+            self.total_llm_time += llm_time
+            
+            logger.info(f"⚡ LLM API call completed in {llm_time:.3f}s for rule: {rule_name}")
+            logger.info(f"📄 Response length: {len(response)} characters")
+            logger.info(f"📊 LLM Call #{self.llm_call_count} | Total LLM time: {self.total_llm_time:.3f}s | Avg: {self.total_llm_time/self.llm_call_count:.3f}s")
+            
+            # Parse the response
+            parse_start = time.time()
+            analysis = self._parse_business_rule_response(response)
+            parse_time = time.time() - parse_start
+            
+            total_time = time.time() - start_time
+            
+            logger.info(f"✅ LLM analysis completed for rule: {rule_name}")
+            logger.info(f"⏱️  Total time: {total_time:.3f}s (prompt: {prompt_time:.3f}s, LLM: {llm_time:.3f}s, parse: {parse_time:.3f}s)")
+            
+            # Log conversation to file
+            self._log_conversation("BUSINESS_RULE_ANALYSIS", rule_name, prompt, response, llm_time)
+            
+            return analysis
+            
+        except Exception as e:
+            total_time = time.time() - start_time
+            logger.error(f"❌ LLM analysis failed for rule {rule_name} after {total_time:.3f}s: {e}")
+            raise RuntimeError(f"LLM analysis failed for rule {rule_name}: {e}")
+    
+    def _create_business_rule_analysis_prompt(self, business_logic: str, rule_name: str) -> str:
+        """Create a language-agnostic prompt for business rule analysis"""
+        return f"""
+Analyze this {self.language.upper()} business rule:
+
+Rule: {rule_name}
+Code: {business_logic}
+
+Provide only the values in this exact format:
+DESCRIPTION: [what this rule does]
+PRIORITY: [HIGH/MEDIUM/LOW]
+RISK_LEVEL: [CRITICAL/HIGH/MEDIUM/LOW]
+FUNCTIONAL_AREA: [area name]
+CONFIDENCE: [0.0-1.0]
+"""
+    
+    def _parse_business_rule_response(self, response: str) -> Dict[str, Any]:
+        """Parse LLM response for business rule analysis"""
+        lines = response.strip().split('\n')
+        
+        description = "Business rule analysis not available"
+        priority = "MEDIUM"
+        risk_level = "MEDIUM"
+        functional_area = "BUSINESS-LOGIC"  # Default fallback
+        confidence = 0.5
+        
+        for line in lines:
+            line = line.strip()
+            if line.startswith('DESCRIPTION:'):
+                description = line.replace('DESCRIPTION:', '').strip()
+            elif line.startswith('PRIORITY:'):
+                priority = line.replace('PRIORITY:', '').strip().upper()
+                if priority not in ['HIGH', 'MEDIUM', 'LOW']:
+                    priority = "MEDIUM"
+            elif line.startswith('RISK_LEVEL:'):
+                risk_level = line.replace('RISK_LEVEL:', '').strip().upper()
+                if risk_level not in ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW']:
+                    risk_level = "MEDIUM"
+            elif line.startswith('FUNCTIONAL_AREA:'):
+                functional_area = line.replace('FUNCTIONAL_AREA:', '').strip().upper()
+                # Accept any functional area name provided by LLM
+                if not functional_area:
+                    functional_area = "BUSINESS-LOGIC"
+            elif line.startswith('CONFIDENCE:'):
+                try:
+                    confidence = float(line.replace('CONFIDENCE:', '').strip())
+                    confidence = max(0.0, min(1.0, confidence))
+                except ValueError:
+                    confidence = 0.5
+        
+        return {
+            "description": description,
+            "priority": priority,
+            "risk_level": risk_level,
+            "functional_area": functional_area,
+            "confidence": confidence
+        }
+    
     
     def _create_business_rule_relationships(self, result: BaseParserResult, program_id: str) -> List[CodeRelationship]:
         """Create relationships between sections/subsections and business rules using line-based analysis"""
         relationships = []
         
-        # Extract fraud rules and create relationships
-        fraud_rules = []
+        # Extract business rules and create relationships
+        business_rules = []
         seen_rules = set()
         
         for subsection in result.subsections:
-            if subsection.name and 'RULE-' in subsection.name:
-                # Extract the rule type (e.g., "RULE-HIGH-AMOUNT" from "2610-RULE-HIGH-AMOUNT")
-                rule_type = None
-                for rule_key in ["RULE-HIGH-AMOUNT", "RULE-VELOCITY-CHECK", "RULE-LOCATION-VARIANCE", 
-                               "RULE-MERCHANT-RISK", "RULE-TIME-PATTERN", "RULE-CARD-NOT-PRESENT", 
-                               "RULE-SUSPICIOUS-CATEGORY", "RULE-CUSTOMER-BEHAVIOR", "RULE-ACCOUNT-AGE", 
-                               "RULE-CROSS-VALIDATION"]:
-                    if rule_key in subsection.name:
-                        rule_type = rule_key
-                        break
-                
-                if rule_type and rule_type not in seen_rules:
-                    seen_rules.add(rule_type)
-                    fraud_rules.append((rule_type, subsection))
+            if self._is_business_rule(subsection):
+                rule_name = subsection.name or f"UNNAMED_RULE_{len(business_rules) + 1}"
+                if rule_name not in seen_rules:
+                    seen_rules.add(rule_name)
+                    business_rules.append((rule_name, subsection))
         
         # Create relationships for each business rule using line-based analysis
-        for i, (rule_type, rule) in enumerate(fraud_rules):
+        for i, (rule_name, rule) in enumerate(business_rules):
             rule_id = f"rule_{i + 1}"
             
-            # Strategy: Use semantic distribution for better visualization
-            # Map business rules to their logical functional areas
-            logical_section = self._get_logical_section_for_rule(rule_type, result.sections)
+            try:
+                # Get LLM analysis for this rule to determine functional area
+                analysis = self._analyze_business_rule_with_llm(rule.business_logic, rule.name)
+                functional_area = analysis.get("functional_area")
+            except Exception as e:
+                logger.error(f"Failed to analyze business rule {rule.name} for relationships: {e}")
+                # Skip relationship creation for this rule if LLM analysis fails
+                continue
             
-            if logical_section:
-                # Create relationship to the logical functional section
-                section_id = self._get_section_id(logical_section, result.sections)
+            # Strategy: Create BOTH physical and semantic relationships
+            # 1. Physical relationship: Find the actual containing section
+            containing_section = self._find_containing_section(rule.line_range[0], result.sections)
+            
+            if containing_section:
+                # Create relationship to the actual containing section
+                section_id = self._get_section_id(containing_section, result.sections)
                 rel = CodeRelationship(
                     source_id=section_id,
                     target_id=rule_id,
-                    relationship_type="IMPLEMENTS",
+                    relationship_type="CONTAINS",
                     properties={
-                        "description": f"Section {logical_section.name} implements {rule_type}",
+                        "description": f"Section {containing_section.name} contains {rule_name}",
                         "confidence": 1.0,
-                        "rule_name": rule.name,
-                        "rule_type": rule_type,
-                        "logical_section": logical_section.name,
-                        "semantic_mapping": True,
-                        "rule_start_line": rule.line_range[0],
-                        "rule_end_line": rule.line_range[1]
+                        "relationship_type": "physical"
+                    }
+                )
+                relationships.append(rel)
+            
+            # 2. Semantic relationship: Map to logical functional area using LLM analysis
+            logical_section = self._get_logical_section_for_rule(rule_name, result.sections, functional_area)
+            
+            if logical_section and logical_section != containing_section:
+                # Create semantic relationship to the logical functional section
+                logical_section_id = self._get_section_id(logical_section, result.sections)
+                rel = CodeRelationship(
+                    source_id=logical_section_id,
+                    target_id=rule_id,
+                    relationship_type="RELATES_TO",
+                    properties={
+                        "description": f"Business rule {rule_name} relates to {logical_section.name} functionality",
+                        "confidence": 0.8,
+                        "relationship_type": "semantic"
                     }
                 )
                 relationships.append(rel)
@@ -365,10 +630,7 @@ class ParserResultConverter:
                     properties={
                         "description": f"Subsection {rule.name} implements business rule",
                         "confidence": 1.0,
-                        "rule_name": rule.name,
-                        "rule_type": rule_type,
-                        "subsection_name": rule.name,
-                        "granular_implementation": True
+                        "relationship_type": "implementation"
                     }
                 )
                 relationships.append(rel)
@@ -388,6 +650,25 @@ class ParserResultConverter:
             if s.name == section.name and s.line_range == section.line_range:
                 return f"section_{i + 1}"
         return "unknown_section"
+    
+    def _get_logical_section_for_rule(self, rule_type: str, sections: List, functional_area: Optional[str] = None) -> Optional[Any]:
+        """Get the logical functional section for a business rule based on LLM analysis"""
+        if not functional_area:
+            logger.warning(f"No functional area provided for rule {rule_type} - LLM analysis required")
+            return None
+        
+        # Find the section with the matching functional area name from LLM analysis
+        for section in sections:
+            if functional_area in section.name:
+                return section
+        
+        # If no exact match, try to find a section that contains the functional area
+        for section in sections:
+            if functional_area.lower() in section.name.lower():
+                return section
+                
+        logger.warning(f"No section found for functional area: {functional_area}")
+        return None
     
     def _create_operation_nodes(self, result: BaseParserResult, program_id: str) -> List[CodeNode]:
         """Create operation nodes from parser result"""
@@ -702,7 +983,11 @@ class ParserResultConverter:
         return program_id
 
 
-def convert_parser_result_to_neo4j(result: BaseParserResult) -> GraphData:
+def convert_parser_result_to_neo4j(result: BaseParserResult, llm_config: LLMProviderConfig, language: str = None) -> GraphData:
     """Convenience function to convert parser result to Neo4j graph data"""
-    converter = ParserResultConverter()
+    # Auto-detect language from result if not provided
+    if language is None:
+        language = result.program.language.lower() if hasattr(result.program, 'language') else "cobol"
+    
+    converter = ParserResultConverter(llm_config, language)
     return converter.convert_parser_result(result)
