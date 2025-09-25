@@ -1,20 +1,29 @@
-# COBOL Code Grapher
+# LLM Code Grapher
 
-A Python tool that analyzes COBOL code structure using LLMs to create hierarchical mappings of sections and subsections, including business logic extraction and relationship mapping.
+A comprehensive tool for analyzing code structure using LLMs to create hierarchical mappings, business logic extraction, and relationship mapping across multiple programming languages.
 
-## Features
+## Architecture
 
-- **Hierarchical Structure Mapping**: Identifies COBOL sections and subsections
-- **Business Logic Extraction**: Uses LLMs to understand what each section does
-- **Relationship Mapping**: Finds connections between sections
-- **Confidence Scoring**: Provides confidence levels for all extractions
-- **Multiple Output Formats**: JSON, text summaries, and visualizations
-- **Multiple LLM Providers**: Support for OpenAI and Ollama (local) providers
+This project is organized into two main modules:
+
+### 🔍 Codebase Analysis Module
+- **Language Parsers**: COBOL, Python, Java, and more
+- **Ontology Definitions**: Language-specific code structures
+- **Neo4j Integration**: Graph database for code relationships
+- **LLM Analysis**: AI-powered code understanding
+- **Analysis Tools**: Graph analyzers, visualizations, and reports
+
+### 📊 Product Management Module
+- **Project Planning**: Roadmaps and feature management
+- **Release Planning**: Version control and deployment
+- **Stakeholder Communication**: Reports and dashboards
+- **Metrics & Reporting**: Performance and usage analytics
 
 ## Quick Start
 
 ### Prerequisites
 - Python 3.8+
+- Neo4j database
 - One of the following:
   - OpenAI API key (for OpenAI provider)
   - Ollama installed locally (for Ollama provider)
@@ -30,66 +39,62 @@ pip install -r requirements.txt
 
 # Set up environment
 cp .env.example .env
-# Edit .env with your OpenAI API key
+# Edit .env with your configuration
 ```
 
 ### Usage
 
-#### Using OpenAI (default)
+#### Codebase Analysis
 ```bash
-# Set your OpenAI API key
-export OPENAI_API_KEY="your-api-key-here"
+# Analyze code using the codebase analysis module
+python main.py codebase-analysis analyze data/fixtures/vasu_fraud_management_cobol_reformatted.cbl
 
-# Analyze a COBOL file
-python -m src.cli analyze data/fixtures/vasu_fraud_management_cobol_reformatted.cbl
+# Run graph analyzer
+python main.py codebase-analysis analyze_graph --database llmcodegrapher
 
-# Or explicitly specify OpenAI
-python -m src.cli analyze file.cbl --provider openai
+# Get help
+python main.py codebase-analysis --help
 ```
 
-#### Using Ollama (local)
+#### Product Management
 ```bash
-# Start Ollama (if not already running)
-ollama serve
+# Access product management features
+python main.py product-management
 
-# Pull a model (e.g., llama2)
-ollama pull llama2
-
-# Analyze with Ollama
-python -m src.cli analyze file.cbl --provider ollama --model llama2
-
-# Or use custom Ollama URL
-python -m src.cli analyze file.cbl --provider ollama --base-url http://localhost:11434
+# Get help
+python main.py product-management --help
 ```
 
-#### Configuration
-You can also configure the provider in `config.yaml`:
-```yaml
-llm:
-  provider: "ollama"  # or "openai"
-  model: "llama2"     # or "gpt-4"
-  base_url: "http://localhost:11434"  # for Ollama
-  api_key: null       # for OpenAI
-```
-
-#### Get help
+#### Direct Module Access
 ```bash
-python -m src.cli --help
-python -m src.cli analyze --help
+# Access codebase analysis directly
+cd codebase-analysis
+python main.py analyze file.cbl
+
+# Run graph analyzer directly
+cd codebase-analysis
+python analyze_graph.py --database llmcodegrapher
 ```
 
 ## Project Structure
 
 ```
 llm-code-grapher/
-├── src/                    # Source code
-├── tests/                  # Test files
-├── data/                   # Data and fixtures
-│   ├── fixtures/           # Input COBOL files
-│   └── output/             # Generated outputs
-├── docs/                   # Documentation
-├── scripts/                # Utility scripts
-└── logs/                   # Application logs
+├── codebase-analysis/       # Code analysis functionality
+│   ├── lang/               # Language parsers and ontologies
+│   ├── src/                # Core analysis engine
+│   ├── tools/              # Analysis tools and utilities
+│   ├── examples/           # Usage examples
+│   ├── tests/              # Test suites
+│   ├── data/               # Sample data and fixtures
+│   ├── output/             # Analysis outputs
+│   └── logs/               # Analysis logs
+├── product-management/      # Product management functionality
+│   ├── src/                # Product management core
+│   ├── tests/              # Product management tests
+│   └── docs/               # Product management docs
+├── docs/                   # Project documentation
+└── main.py                 # Main entry point
 ```
 
 ## Development
