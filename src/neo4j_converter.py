@@ -33,6 +33,9 @@ class ParserResultConverter:
         self.llm_call_count = 0
         self.total_llm_time = 0.0
         
+        # Analysis cache to avoid duplicate LLM calls
+        self.analysis_cache = {}
+        
         # Setup LLM conversation logging
         if llm_config:
             import datetime
@@ -205,8 +208,14 @@ class ParserResultConverter:
         nodes = []
         
         for i, section in enumerate(result.sections):
+            # Flatten line_range for Neo4j compatibility
+            line_range = getattr(section, 'line_range', [0, 0])
+            line_count = line_range[1] - line_range[0] + 1 if len(line_range) >= 2 else 0
+            
             properties = {
-                "line_range": getattr(section, 'line_range', [0, 0]),
+                "line_range_start": line_range[0] if len(line_range) >= 1 else 0,
+                "line_range_end": line_range[1] if len(line_range) >= 2 else 0,
+                "line_count": line_count,
                 "business_logic": getattr(section, 'business_logic', ''),
                 "complexity_score": getattr(section, 'complexity_score', 0.0),
                 "risk_level": getattr(section, 'risk_level', 'UNKNOWN'),
@@ -235,8 +244,14 @@ class ParserResultConverter:
         nodes = []
         
         for i, subsection in enumerate(result.subsections):
+            # Flatten line_range for Neo4j compatibility
+            line_range = getattr(subsection, 'line_range', [0, 0])
+            line_count = line_range[1] - line_range[0] + 1 if len(line_range) >= 2 else 0
+            
             properties = {
-                "line_range": getattr(subsection, 'line_range', [0, 0]),
+                "line_range_start": line_range[0] if len(line_range) >= 1 else 0,
+                "line_range_end": line_range[1] if len(line_range) >= 2 else 0,
+                "line_count": line_count,
                 "business_logic": getattr(subsection, 'business_logic', ''),
                 "complexity_score": getattr(subsection, 'complexity_score', 0.0),
                 "risk_level": getattr(subsection, 'risk_level', 'UNKNOWN'),
@@ -318,8 +333,10 @@ class ParserResultConverter:
         
         logger.info(f"🎯 Business rule detection complete: {len(business_rules)} business rules found out of {total_subsections} subsections")
         
-        # Create business rule nodes
+        # Create business rule nodes with caching
         logger.info(f"🚀 Starting detailed analysis of {len(business_rules)} business rules...")
+        
+        # Analysis cache is already initialized in constructor
         
         for i, rule in enumerate(business_rules, 1):
             logger.info(f"📝 Analyzing business rule {i}/{len(business_rules)}: {rule.name}")
@@ -327,8 +344,11 @@ class ParserResultConverter:
             rule_id = f"DYNAMIC_RULE_{i+1:03d}"
             
             try:
-                # Analyze business rule using LLM
+                # Analyze business rule using LLM and cache the result
                 analysis = self._analyze_business_rule_with_llm(rule.business_logic, rule.name)
+                # Cache the analysis result for reuse in relationship creation
+                self.analysis_cache[rule.name] = analysis
+                
                 description = analysis["description"]
                 priority = analysis["priority"]
                 risk_level = analysis["risk_level"]
@@ -340,6 +360,10 @@ class ParserResultConverter:
                 # Skip this rule if LLM analysis fails
                 continue
             
+            # Flatten location properties for Neo4j compatibility
+            line_range = getattr(rule, 'line_range', [0, 0])
+            line_count = line_range[1] - line_range[0] + 1 if len(line_range) >= 2 else 0
+            
             properties = {
                 "description": description,
                 "priority": priority,
@@ -350,11 +374,11 @@ class ParserResultConverter:
                 "confidence": getattr(rule, 'confidence', 0.0),
                 "analysis_confidence": analysis_confidence,
                 "analysis_method": analysis_method,
-                "location": {
-                    "line_range": list(getattr(rule, 'line_range', [0, 0])),
-                    "line_count": getattr(rule, 'line_range', [0, 0])[1] - getattr(rule, 'line_range', [0, 0])[0] + 1,
-                    "containing_section": getattr(rule, 'parent_section', 'UNKNOWN')
-                }
+                # Flattened location properties
+                "line_range_start": line_range[0] if len(line_range) >= 1 else 0,
+                "line_range_end": line_range[1] if len(line_range) >= 2 else 0,
+                "line_count": line_count,
+                "containing_section": getattr(rule, 'parent_section', 'UNKNOWN')
             }
             
             # Remove None values
@@ -613,12 +637,19 @@ CONFIDENCE: [0.0-1.0]
             rule_id = f"rule_{i + 1}"
             
             try:
-                # Get LLM analysis for this rule to determine functional area
-                analysis = self._analyze_business_rule_with_llm(rule.business_logic, rule.name)
-                functional_area = analysis.get("functional_area")
+                # Use cached analysis result instead of making duplicate LLM call
+                if hasattr(self, 'analysis_cache') and rule.name in self.analysis_cache:
+                    analysis = self.analysis_cache[rule.name]
+                    functional_area = analysis.get("functional_area")
+                    logger.info(f"♻️  Using cached analysis for {rule.name} (saved 1 LLM call)")
+                else:
+                    # Fallback: make LLM call if cache miss (shouldn't happen in normal flow)
+                    logger.warning(f"⚠️  Cache miss for {rule.name}, making LLM call")
+                    analysis = self._analyze_business_rule_with_llm(rule.business_logic, rule.name)
+                    functional_area = analysis.get("functional_area")
             except Exception as e:
-                logger.error(f"Failed to analyze business rule {rule.name} for relationships: {e}")
-                # Skip relationship creation for this rule if LLM analysis fails
+                logger.error(f"Failed to get analysis for business rule {rule.name}: {e}")
+                # Skip relationship creation for this rule if analysis fails
                 continue
             
             # Strategy: Create BOTH physical and semantic relationships
@@ -721,8 +752,14 @@ CONFIDENCE: [0.0-1.0]
         # Check if result has operations (COBOL-specific)
         if hasattr(result, 'operations') and result.operations:
             for i, operation in enumerate(result.operations):
+                # Flatten line_range for Neo4j compatibility
+                line_range = getattr(operation, 'line_range', [0, 0])
+                line_count = line_range[1] - line_range[0] + 1 if len(line_range) >= 2 else 0
+                
                 properties = {
-                    "line_range": getattr(operation, 'line_range', [0, 0]),
+                    "line_range_start": line_range[0] if len(line_range) >= 1 else 0,
+                    "line_range_end": line_range[1] if len(line_range) >= 2 else 0,
+                    "line_count": line_count,
                     "business_logic": getattr(operation, 'business_logic', ''),
                     "complexity_score": getattr(operation, 'complexity_score', 0.0),
                     "risk_level": getattr(operation, 'risk_level', 'UNKNOWN'),
