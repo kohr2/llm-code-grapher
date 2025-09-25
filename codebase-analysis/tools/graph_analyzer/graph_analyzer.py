@@ -64,6 +64,11 @@ class Neo4jGraphAnalyzer:
         """Analyze the complete graph structure starting from root nodes"""
         print(f"🔍 Analyzing graph structure (max depth: {max_depth})...")
         
+        # Warn about deep analysis performance
+        if max_depth > 4:
+            print(f"⚠️  Warning: Deep analysis (depth {max_depth}) may take a long time.")
+            print(f"   Consider using --max-depth 3 or 4 for faster results.")
+        
         # Get basic database info
         db_info = self.get_database_info()
         
@@ -74,11 +79,16 @@ class Neo4jGraphAnalyzer:
         # Analyze each level starting from root
         level_analysis = {}
         for level in range(max_depth + 1):
+            print(f"📊 Analyzing level {level}...")
             if level == 1:
                 # Special logic for level 1: find node type with least direct but most indirect connections
                 level_analysis[level] = self.analyze_level_1_optimal(root_node_type)
             else:
                 level_analysis[level] = self.analyze_level(level, max_depth, root_node_type)
+            
+            # Add progress indicator for deep analysis
+            if level > 2:
+                print(f"   ✅ Level {level} completed")
         
         # Get relationship analysis
         relationship_analysis = self.analyze_relationships(max_depth, root_node_type)
@@ -206,14 +216,18 @@ class Neo4jGraphAnalyzer:
             
             path_pattern = "".join(path_parts)
             
+            # Add LIMIT for deep analysis to prevent exponential explosion
+            limit_clause = "LIMIT 1000" if level > 3 else ""
+            
             query = f"""
             MATCH {path_pattern}
             RETURN 
                 labels(level{level}) as nodeType,
                 type(r{level-1}) as relationshipType,
-                count(level{level}) as count,
-                sum(level{level}.line_count) as total_lines
+                count(DISTINCT level{level}) as count,
+                sum(DISTINCT level{level}.line_count) as total_lines
             ORDER BY count DESC
+            {limit_clause}
             """
         
         return self.execute_query(query)
@@ -270,9 +284,12 @@ class Neo4jGraphAnalyzer:
             
             path_pattern = "".join(path_parts)
             
+            # Fix variable naming: level0 should be p (the root node)
+            parent_var = "p" if level == 1 else f"level{level-1}"
+            
             query = f"""
             MATCH {path_pattern}
-            WITH level{level-1} as parent, level{level} as child, r{level-1} as rel
+            WITH {parent_var} as parent, level{level} as child, r{level-1} as rel
             RETURN 
                 type(rel) as relationshipType,
                 labels(parent) as parentType,

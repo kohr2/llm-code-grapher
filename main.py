@@ -8,7 +8,6 @@ This is the main entry point that delegates to the appropriate module:
 """
 
 import sys
-import os
 from pathlib import Path
 
 # Add the current directory to Python path
@@ -21,7 +20,7 @@ def main():
         print("LLM Code Grapher")
         print("Usage:")
         print("  python main.py codebase-analysis [args...]  # Run codebase analysis")
-        print("  python main.py product-management [args...] # Run product management")
+        print("  python main.py pm-analysis [args...]        # Run product management")
         print("  python main.py --help                       # Show this help")
         return
     
@@ -35,23 +34,23 @@ def main():
         sys.argv = [original_argv[0]] + original_argv[2:]
         from main import main as codebase_main
         codebase_main()
-    elif module == "product-management":
+    elif module == "pm-analysis":
         # Delegate to product management module
-        sys.path.insert(0, str(current_dir / "product-management"))
+        sys.path.insert(0, str(current_dir / "pm-analysis"))
         # Remove the module name from sys.argv and pass the rest
         original_argv = sys.argv[:]
         sys.argv = [original_argv[0]] + original_argv[2:]
-        from main import main as product_main
-        product_main()
+        from main import main as pm_main
+        pm_main()
     elif module == "--help" or module == "-h":
         print("LLM Code Grapher")
         print("Usage:")
         print("  python main.py codebase-analysis [args...]  # Run codebase analysis")
-        print("  python main.py product-management [args...] # Run product management")
+        print("  python main.py pm-analysis [args...]        # Run product management")
         print("  python main.py --help                       # Show this help")
     else:
         print(f"Unknown module: {module}")
-        print("Available modules: codebase-analysis, product-management")
+        print("Available modules: codebase-analysis, pm-analysis")
         sys.exit(1)
 
 if __name__ == "__main__":
