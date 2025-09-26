@@ -207,35 +207,77 @@ class ParserResultConverter:
         """Create section nodes from parser result"""
         nodes = []
         
-        for i, section in enumerate(result.sections):
-            # Flatten line_range for Neo4j compatibility
-            line_range = getattr(section, 'line_range', [0, 0])
-            line_count = line_range[1] - line_range[0] + 1 if len(line_range) >= 2 else 0
+        # For COBOL, use reference structure if available to create proper hierarchical mapping
+        if hasattr(result, 'reference_structure') and result.reference_structure:
+            # Create division nodes (Level 1)
+            for i, division in enumerate(result.reference_structure['divisions']):
+                properties = {
+                    "line_number": division['line_number'],
+                    "line_content": division['line_content'],
+                    "hierarchy_level": 1,
+                    "cobol_type": "DIVISION"
+                }
+                
+                division_id = f"division_{i + 1}"
+                node = CodeNode(
+                    node_id=division_id,
+                    node_type="Division",
+                    name=division['name'],
+                    language=result.program.language,
+                    properties=properties
+                )
+                nodes.append(node)
             
-            properties = {
-                "line_range_start": line_range[0] if len(line_range) >= 1 else 0,
-                "line_range_end": line_range[1] if len(line_range) >= 2 else 0,
-                "line_count": line_count,
-                "business_logic": getattr(section, 'business_logic', ''),
-                "complexity_score": getattr(section, 'complexity_score', 0.0),
-                "risk_level": getattr(section, 'risk_level', 'UNKNOWN'),
-                "confidence": getattr(section, 'confidence', 0.0),
-                "section_type": getattr(section, 'type', 'UNKNOWN')
-            }
-            
-            # Remove None values
-            properties = {k: v for k, v in properties.items() if v is not None}
-            
-            # Use enumeration-based ID to match relationship creation
-            section_id = f"section_{i + 1}"
-            node = CodeNode(
-                node_id=section_id,
-                node_type="Section",
-                name=section.name,
-                language=result.program.language,
-                properties=properties
-            )
-            nodes.append(node)
+            # Create section nodes (Level 2)
+            for i, section_data in enumerate(result.reference_structure['sections']):
+                properties = {
+                    "line_number": section_data['line_number'],
+                    "line_content": section_data['line_content'],
+                    "division": section_data.get('division', 'UNKNOWN'),
+                    "hierarchy_level": 2,
+                    "cobol_type": "SECTION"
+                }
+                
+                section_id = f"section_{i + 1}"
+                node = CodeNode(
+                    node_id=section_id,
+                    node_type="Section",
+                    name=section_data['name'],
+                    language=result.program.language,
+                    properties=properties
+                )
+                nodes.append(node)
+        else:
+            # Fallback to original parser sections
+            for i, section in enumerate(result.sections):
+                # Flatten line_range for Neo4j compatibility
+                line_range = getattr(section, 'line_range', [0, 0])
+                line_count = line_range[1] - line_range[0] + 1 if len(line_range) >= 2 else 0
+                
+                properties = {
+                    "line_range_start": line_range[0] if len(line_range) >= 1 else 0,
+                    "line_range_end": line_range[1] if len(line_range) >= 2 else 0,
+                    "line_count": line_count,
+                    "business_logic": getattr(section, 'business_logic', ''),
+                    "complexity_score": getattr(section, 'complexity_score', 0.0),
+                    "risk_level": getattr(section, 'risk_level', 'UNKNOWN'),
+                    "confidence": getattr(section, 'confidence', 0.0),
+                    "section_type": getattr(section, 'type', 'UNKNOWN')
+                }
+                
+                # Remove None values
+                properties = {k: v for k, v in properties.items() if v is not None}
+                
+                # Use enumeration-based ID to match relationship creation
+                section_id = f"section_{i + 1}"
+                node = CodeNode(
+                    node_id=section_id,
+                    node_type="Section",
+                    name=section.name,
+                    language=result.program.language,
+                    properties=properties
+                )
+                nodes.append(node)
         
         return nodes
     
@@ -243,38 +285,65 @@ class ParserResultConverter:
         """Create subsection nodes from parser result"""
         nodes = []
         
-        for i, subsection in enumerate(result.subsections):
-            # Flatten line_range for Neo4j compatibility
-            line_range = getattr(subsection, 'line_range', [0, 0])
-            line_count = line_range[1] - line_range[0] + 1 if len(line_range) >= 2 else 0
-            
-            properties = {
-                "line_range_start": line_range[0] if len(line_range) >= 1 else 0,
-                "line_range_end": line_range[1] if len(line_range) >= 2 else 0,
-                "line_count": line_count,
-                "business_logic": getattr(subsection, 'business_logic', ''),
-                "complexity_score": getattr(subsection, 'complexity_score', 0.0),
-                "risk_level": getattr(subsection, 'risk_level', 'UNKNOWN'),
-                "confidence": getattr(subsection, 'confidence', 0.0),
-                "subsection_type": getattr(subsection, 'type', 'UNKNOWN'),
-                "parent_section": getattr(subsection, 'parent_section', 'UNKNOWN')
-            }
-            
-            # Remove None values
-            properties = {k: v for k, v in properties.items() if v is not None}
-            
-            # Use enumeration-based ID to match relationship creation
-            subsection_id = f"subsection_{len(nodes) + 1}"
-            
-            node = CodeNode(
-                node_id=subsection_id,
-                node_type="Subsection",
-                name=subsection.name or f"UNNAMED_SUBSECTION_{i+1}",  # Fallback name
-                language=result.program.language,
-                properties=properties
-            )
-            
-            nodes.append(node)
+        # For COBOL, use reference structure if available to create proper hierarchical mapping
+        if hasattr(result, 'reference_structure') and result.reference_structure:
+            # Create paragraph nodes (Level 3)
+            for i, paragraph_data in enumerate(result.reference_structure['paragraphs']):
+                properties = {
+                    "line_number": paragraph_data['line_number'],
+                    "line_content": paragraph_data['line_content'],
+                    "division": paragraph_data.get('division', 'UNKNOWN'),
+                    "section": paragraph_data.get('section', 'UNKNOWN'),
+                    "hierarchy_level": 3,
+                    "cobol_type": "PARAGRAPH"
+                }
+                
+                # Remove None values
+                properties = {k: v for k, v in properties.items() if v is not None}
+                
+                paragraph_id = f"paragraph_{i + 1}"
+                node = CodeNode(
+                    node_id=paragraph_id,
+                    node_type="Paragraph",
+                    name=paragraph_data['name'],
+                    language=result.program.language,
+                    properties=properties
+                )
+                nodes.append(node)
+        else:
+            # Fallback to original parser subsections
+            for i, subsection in enumerate(result.subsections):
+                # Flatten line_range for Neo4j compatibility
+                line_range = getattr(subsection, 'line_range', [0, 0])
+                line_count = line_range[1] - line_range[0] + 1 if len(line_range) >= 2 else 0
+                
+                properties = {
+                    "line_range_start": line_range[0] if len(line_range) >= 1 else 0,
+                    "line_range_end": line_range[1] if len(line_range) >= 2 else 0,
+                    "line_count": line_count,
+                    "business_logic": getattr(subsection, 'business_logic', ''),
+                    "complexity_score": getattr(subsection, 'complexity_score', 0.0),
+                    "risk_level": getattr(subsection, 'risk_level', 'UNKNOWN'),
+                    "confidence": getattr(subsection, 'confidence', 0.0),
+                    "subsection_type": getattr(subsection, 'type', 'UNKNOWN'),
+                    "parent_section": getattr(subsection, 'parent_section', 'UNKNOWN')
+                }
+                
+                # Remove None values
+                properties = {k: v for k, v in properties.items() if v is not None}
+                
+                # Use enumeration-based ID to match relationship creation
+                subsection_id = f"subsection_{len(nodes) + 1}"
+                
+                node = CodeNode(
+                    node_id=subsection_id,
+                    node_type="Subsection",
+                    name=subsection.name or f"UNNAMED_SUBSECTION_{i+1}",  # Fallback name
+                    language=result.program.language,
+                    properties=properties
+                )
+                
+                nodes.append(node)
         
         return nodes
     
@@ -749,40 +818,68 @@ CONFIDENCE: [0.0-1.0]
         """Create operation nodes from parser result"""
         nodes = []
         
-        # Check if result has operations (COBOL-specific)
-        if hasattr(result, 'operations') and result.operations:
-            for i, operation in enumerate(result.operations):
-                # Flatten line_range for Neo4j compatibility
-                line_range = getattr(operation, 'line_range', [0, 0])
-                line_count = line_range[1] - line_range[0] + 1 if len(line_range) >= 2 else 0
-                
+        # For COBOL, use reference structure if available to create proper hierarchical mapping
+        if hasattr(result, 'reference_structure') and result.reference_structure:
+            # Create statement nodes (Level 4)
+            for i, statement_data in enumerate(result.reference_structure['statements']):
                 properties = {
-                    "line_range_start": line_range[0] if len(line_range) >= 1 else 0,
-                    "line_range_end": line_range[1] if len(line_range) >= 2 else 0,
-                    "line_count": line_count,
-                    "business_logic": getattr(operation, 'business_logic', ''),
-                    "complexity_score": getattr(operation, 'complexity_score', 0.0),
-                    "risk_level": getattr(operation, 'risk_level', 'UNKNOWN'),
-                    "confidence": getattr(operation, 'confidence', 0.0),
-                    "operation_type": getattr(operation, 'operation_type', 'UNKNOWN'),
-                    "parent_subsection": getattr(operation, 'parent_subsection', 'UNKNOWN'),
-                    "parameters": getattr(operation, 'parameters', []),
-                    "parameter_count": len(getattr(operation, 'parameters', []))
+                    "line_number": statement_data['line_number'],
+                    "line_content": statement_data['line_content'],
+                    "statement_type": statement_data['type'],
+                    "paragraph": statement_data.get('paragraph', 'UNKNOWN'),
+                    "section": statement_data.get('section', 'UNKNOWN'),
+                    "hierarchy_level": 4,
+                    "cobol_type": "STATEMENT"
                 }
                 
                 # Remove None values
                 properties = {k: v for k, v in properties.items() if v is not None}
                 
-                # Use enumeration-based ID to match relationship creation
-                operation_id = f"operation_{i + 1}"
+                statement_id = f"statement_{i + 1}"
                 node = CodeNode(
-                    node_id=operation_id,
+                    node_id=statement_id,
                     node_type="Operation",
-                    name=operation.name,
+                    name=f"{statement_data['type']}_{i + 1}",
                     language=result.program.language,
                     properties=properties
                 )
                 nodes.append(node)
+        else:
+            # Fallback to original parser operations
+            # Check if result has operations (COBOL-specific)
+            if hasattr(result, 'operations') and result.operations:
+                for i, operation in enumerate(result.operations):
+                    # Flatten line_range for Neo4j compatibility
+                    line_range = getattr(operation, 'line_range', [0, 0])
+                    line_count = line_range[1] - line_range[0] + 1 if len(line_range) >= 2 else 0
+                    
+                    properties = {
+                        "line_range_start": line_range[0] if len(line_range) >= 1 else 0,
+                        "line_range_end": line_range[1] if len(line_range) >= 2 else 0,
+                        "line_count": line_count,
+                        "business_logic": getattr(operation, 'business_logic', ''),
+                        "complexity_score": getattr(operation, 'complexity_score', 0.0),
+                        "risk_level": getattr(operation, 'risk_level', 'UNKNOWN'),
+                        "confidence": getattr(operation, 'confidence', 0.0),
+                        "operation_type": getattr(operation, 'operation_type', 'UNKNOWN'),
+                        "parent_subsection": getattr(operation, 'parent_subsection', 'UNKNOWN'),
+                        "parameters": getattr(operation, 'parameters', []),
+                        "parameter_count": len(getattr(operation, 'parameters', []))
+                    }
+                    
+                    # Remove None values
+                    properties = {k: v for k, v in properties.items() if v is not None}
+                    
+                    # Use enumeration-based ID to match relationship creation
+                    operation_id = f"operation_{i + 1}"
+                    node = CodeNode(
+                        node_id=operation_id,
+                        node_type="Operation",
+                        name=operation.name,
+                        language=result.program.language,
+                        properties=properties
+                    )
+                    nodes.append(node)
         
         return nodes
     
@@ -790,32 +887,244 @@ CONFIDENCE: [0.0-1.0]
         """Create relationships from parser result"""
         relationships = []
         
-        # Create proper hierarchical tree structure
-        # First, separate divisions from regular sections
-        divisions = []
-        regular_sections = []
-        
-        for i, section in enumerate(result.sections):
-            section_id = f"section_{i + 1}"
-            if section.type in ['IDENTIFICATION', 'ENVIRONMENT', 'DATA', 'PROCEDURE']:
-                # This is a division - link directly to program
-                divisions.append((section_id, section))
+        # For COBOL, use reference structure if available to create proper hierarchical relationships
+        if hasattr(result, 'reference_structure') and result.reference_structure:
+            # Create hierarchical relationships based on COBOL structure
+            # Level 0 -> Level 1: Program -> Divisions
+            for i, division in enumerate(result.reference_structure['divisions']):
+                division_id = f"division_{i + 1}"
                 rel = CodeRelationship(
                     source_id=program_id,
-                    target_id=section_id,
+                    target_id=division_id,
                     relationship_type="CONTAINS",
                     properties={
-                        "description": f"Program contains division {section.name}",
-                        "confidence": 1.0
+                        "description": f"Program contains {division['name']} Division",
+                        "confidence": 1.0,
+                        "hierarchy_level": 1
                     }
                 )
                 relationships.append(rel)
-            else:
-                # This is a regular section
-                regular_sections.append((section_id, section))
+            
+            # Level 1 -> Level 2: Divisions -> Sections
+            for i, section_data in enumerate(result.reference_structure['sections']):
+                section_id = f"section_{i + 1}"
+                division_name = section_data.get('division', 'UNKNOWN')
+                
+                # Find the corresponding division ID
+                division_id = None
+                for j, div in enumerate(result.reference_structure['divisions']):
+                    if div['name'] == division_name:
+                        division_id = f"division_{j + 1}"
+                        break
+                
+                if division_id:
+                    rel = CodeRelationship(
+                        source_id=division_id,
+                        target_id=section_id,
+                        relationship_type="CONTAINS",
+                        properties={
+                            "description": f"{division_name} Division contains {section_data['name']} Section",
+                            "confidence": 1.0,
+                            "hierarchy_level": 2
+                        }
+                    )
+                    relationships.append(rel)
+            
+            # Level 2 -> Level 3: Sections -> Paragraphs
+            for i, paragraph_data in enumerate(result.reference_structure['paragraphs']):
+                paragraph_id = f"paragraph_{i + 1}"
+                section_name = paragraph_data.get('section', 'UNKNOWN')
+                
+                # Find the corresponding section ID
+                section_id = None
+                for j, sec in enumerate(result.reference_structure['sections']):
+                    if sec['name'] == section_name:
+                        section_id = f"section_{j + 1}"
+                        break
+                
+                if section_id:
+                    rel = CodeRelationship(
+                        source_id=section_id,
+                        target_id=paragraph_id,
+                        relationship_type="CONTAINS",
+                        properties={
+                            "description": f"{section_name} Section contains {paragraph_data['name']} Paragraph",
+                            "confidence": 1.0,
+                            "hierarchy_level": 3
+                        }
+                    )
+                    relationships.append(rel)
+            
+            # Level 3 -> Level 4: Paragraphs -> Statements
+            for i, statement_data in enumerate(result.reference_structure['statements']):
+                statement_id = f"statement_{i + 1}"
+                paragraph_name = statement_data.get('paragraph', 'UNKNOWN')
+                
+                # Find the corresponding paragraph ID
+                paragraph_id = None
+                for j, para in enumerate(result.reference_structure['paragraphs']):
+                    if para['name'] == paragraph_name:
+                        paragraph_id = f"paragraph_{j + 1}"
+                        break
+                
+                if paragraph_id:
+                    rel = CodeRelationship(
+                        source_id=paragraph_id,
+                        target_id=statement_id,
+                        relationship_type="CONTAINS",
+                        properties={
+                            "description": f"{paragraph_name} Paragraph contains {statement_data['type']} Statement",
+                            "confidence": 1.0,
+                            "hierarchy_level": 4
+                        }
+                    )
+                    relationships.append(rel)
         
-        # Link regular sections to their immediate parent (division or program)
-        for section_id, section in regular_sections:
+        # Add relationships from parser result (if any)
+        for rel in result.relationships:
+            # Convert parser relationship to Neo4j relationship
+            relationship = CodeRelationship(
+                source_id=rel.source,
+                target_id=rel.target,
+                relationship_type=rel.relationship_type,
+                properties={
+                    "confidence": getattr(rel, 'confidence', 0.0),
+                    "strength": getattr(rel, 'strength', 0.0),
+                    "original_source": rel.source,
+                    "original_target": rel.target
+                }
+            )
+            
+            relationships.append(relationship)
+        
+        # Validate tree structure - ensure no circular or multiple parent relationships
+        self._validate_tree_structure(relationships)
+        
+        return relationships
+    
+    def _create_relationships_old(self, result: BaseParserResult, program_id: str) -> List[CodeRelationship]:
+        """Create relationships from parser result"""
+        relationships = []
+        
+        # For COBOL, use reference structure if available to create proper hierarchical relationships
+        if hasattr(result, 'reference_structure') and result.reference_structure:
+            # Create hierarchical relationships based on COBOL structure
+            # Level 0 -> Level 1: Program -> Divisions
+            for i, division in enumerate(result.reference_structure['divisions']):
+                division_id = f"division_{i + 1}"
+                rel = CodeRelationship(
+                    source_id=program_id,
+                    target_id=division_id,
+                    relationship_type="CONTAINS",
+                    properties={
+                        "description": f"Program contains {division['name']} Division",
+                        "confidence": 1.0,
+                        "hierarchy_level": 1
+                    }
+                )
+                relationships.append(rel)
+            
+            # Level 1 -> Level 2: Divisions -> Sections
+            for i, section_data in enumerate(result.reference_structure['sections']):
+                section_id = f"section_{i + 1}"
+                division_name = section_data.get('division', 'UNKNOWN')
+                
+                # Find the corresponding division ID
+                division_id = None
+                for j, div in enumerate(result.reference_structure['divisions']):
+                    if div['name'] == division_name:
+                        division_id = f"division_{j + 1}"
+                        break
+                
+                if division_id:
+                    rel = CodeRelationship(
+                        source_id=division_id,
+                        target_id=section_id,
+                        relationship_type="CONTAINS",
+                        properties={
+                            "description": f"{division_name} Division contains {section_data['name']} Section",
+                            "confidence": 1.0,
+                            "hierarchy_level": 2
+                        }
+                    )
+                    relationships.append(rel)
+            
+            # Level 2 -> Level 3: Sections -> Paragraphs
+            for i, paragraph_data in enumerate(result.reference_structure['paragraphs']):
+                paragraph_id = f"paragraph_{i + 1}"
+                section_name = paragraph_data.get('section', 'UNKNOWN')
+                
+                # Find the corresponding section ID
+                section_id = None
+                for j, sec in enumerate(result.reference_structure['sections']):
+                    if sec['name'] == section_name:
+                        section_id = f"section_{j + 1}"
+                        break
+                
+                if section_id:
+                    rel = CodeRelationship(
+                        source_id=section_id,
+                        target_id=paragraph_id,
+                        relationship_type="CONTAINS",
+                        properties={
+                            "description": f"{section_name} Section contains {paragraph_data['name']} Paragraph",
+                            "confidence": 1.0,
+                            "hierarchy_level": 3
+                        }
+                    )
+                    relationships.append(rel)
+            
+            # Level 3 -> Level 4: Paragraphs -> Statements
+            for i, statement_data in enumerate(result.reference_structure['statements']):
+                statement_id = f"statement_{i + 1}"
+                paragraph_name = statement_data.get('paragraph', 'UNKNOWN')
+                
+                # Find the corresponding paragraph ID
+                paragraph_id = None
+                for j, para in enumerate(result.reference_structure['paragraphs']):
+                    if para['name'] == paragraph_name:
+                        paragraph_id = f"paragraph_{j + 1}"
+                        break
+                
+                if paragraph_id:
+                    rel = CodeRelationship(
+                        source_id=paragraph_id,
+                        target_id=statement_id,
+                        relationship_type="CONTAINS",
+                        properties={
+                            "description": f"{paragraph_name} Paragraph contains {statement_data['type']} Statement",
+                            "confidence": 1.0,
+                            "hierarchy_level": 4
+                        }
+                    )
+                    relationships.append(rel)
+        else:
+            # Fallback to original relationship creation logic
+            # Create proper hierarchical tree structure
+            # First, separate divisions from regular sections
+            divisions = []
+            regular_sections = []
+            
+            for i, section in enumerate(result.sections):
+                section_id = f"section_{i + 1}"
+                if section.type in ['IDENTIFICATION', 'ENVIRONMENT', 'DATA', 'PROCEDURE']:
+                    # This is a division - link directly to program
+                    divisions.append((section_id, section))
+                    rel = CodeRelationship(
+                        source_id=program_id,
+                        target_id=section_id,
+                        relationship_type="CONTAINS",
+                        properties={
+                            "description": f"Program contains division {section.name}",
+                            "confidence": 1.0
+                        }
+                    )
+                    relationships.append(rel)
+                else:
+                    # This is a regular section
+                    regular_sections.append((section_id, section))
+        
+        # Old relationship logic removed - using reference structure instead
             # Find the immediate parent division based on line ranges
             parent_division_id = None
             for div_id, division in divisions:

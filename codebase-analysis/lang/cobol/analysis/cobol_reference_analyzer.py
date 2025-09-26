@@ -59,9 +59,10 @@ def analyze_cobol_structure_reference(code_content: str) -> Dict[str, Any]:
             current_section = section_name
             current_paragraph = None
         
-        # Detect paragraphs (COBOL paragraphs start at column 8+)
-        elif re.match(r'^\s*\d+\s+\w+', line_content) and not re.match(r'^\s*\d+\s+(IF|WHEN|EVALUATE|PERFORM|MOVE|ADD|SUBTRACT|MULTIPLY|DIVIDE|COMPUTE|STRING|UNSTRING|ACCEPT|DISPLAY|OPEN|CLOSE|READ|WRITE|REWRITE|DELETE|START)', line_content, re.IGNORECASE):
-            paragraph_name = line_content.split()[1].upper()
+        # Detect paragraphs (COBOL paragraphs follow pattern: 0000-PARAGRAPH-NAME.)
+        elif re.match(r'^\s*\d{4}-\w+.*\.\s*$', line_content) and not re.match(r'^\s*\d{4}-\w+.*\s+SECTION', line_content, re.IGNORECASE):
+            # Extract paragraph name
+            paragraph_name = line_content.split()[0].upper()
             structure['paragraphs'].append({
                 'name': paragraph_name,
                 'line_number': i,
@@ -106,8 +107,8 @@ def analyze_cobol_structure_reference(code_content: str) -> Dict[str, Any]:
                 'division': current_division
             })
         
-        # Detect procedure statements
-        elif current_division == 'PROCEDURE' and line_content:
+        # Detect procedure statements (only in PROCEDURE division, exclude paragraphs and sections)
+        elif current_division == 'PROCEDURE' and line_content and not re.match(r'^\s*\d{4}-\w+', line_content):
             statement_type = classify_cobol_statement(line_content)
             structure['statements'].append({
                 'type': statement_type,
