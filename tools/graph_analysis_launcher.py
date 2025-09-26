@@ -21,7 +21,7 @@ tools_dir = Path(__file__).parent / "tools"
 sys.path.insert(0, str(tools_dir))
 
 # Import the graph analyzer
-from graph_analyzer.graph_analyzer import Neo4jGraphAnalyzer
+from graph_analyzer.neo4j_graph_analyzer import Neo4jGraphAnalyzer
 
 
 def get_config_from_env_and_args():

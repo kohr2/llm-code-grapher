@@ -4,27 +4,27 @@
 
 ### 1. Analyze Default Database
 ```bash
-python graph_analyzer.py --uri bolt://localhost:7687 --user neo4j --password password
+python neo4j_graph_analyzer.py --uri bolt://localhost:7687 --user neo4j --password password
 ```
 
 ### 2. Analyze Specific Database
 ```bash
-python graph_analyzer.py --uri bolt://localhost:7687 --user neo4j --password password --database fraud_db
+python neo4j_graph_analyzer.py --uri bolt://localhost:7687 --user neo4j --password password --database fraud_db
 ```
 
 ### 3. JSON Output
 ```bash
-python graph_analyzer.py --uri bolt://localhost:7687 --user neo4j --password password --output json
+python neo4j_graph_analyzer.py --uri bolt://localhost:7687 --user neo4j --password password --output json
 ```
 
 ### 4. Limited Depth Analysis
 ```bash
-python graph_analyzer.py --uri bolt://localhost:7687 --user neo4j --password password --max-depth 3
+python neo4j_graph_analyzer.py --uri bolt://localhost:7687 --user neo4j --password password --max-depth 3
 ```
 
 ### 5. Export Results
 ```bash
-python graph_analyzer.py --uri bolt://localhost:7687 --user neo4j --password password --export analysis_results.json
+python neo4j_graph_analyzer.py --uri bolt://localhost:7687 --user neo4j --password password --export analysis_results.json
 ```
 
 ## Advanced Usage
