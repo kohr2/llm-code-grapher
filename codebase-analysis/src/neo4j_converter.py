@@ -211,11 +211,15 @@ class ParserResultConverter:
         if hasattr(result, 'reference_structure') and result.reference_structure:
             # Create division nodes (Level 1)
             for i, division in enumerate(result.reference_structure['divisions']):
+                # Extract business logic - use simple extraction for divisions
+                business_logic = f"COBOL {division['name']} Division - {division['line_content']}"
+                
                 properties = {
                     "line_number": division['line_number'],
                     "line_content": division['line_content'],
                     "hierarchy_level": 1,
-                    "cobol_type": "DIVISION"
+                    "cobol_type": "DIVISION",
+                    "business_logic": business_logic
                 }
                 
                 division_id = f"division_{i + 1}"
@@ -230,12 +234,16 @@ class ParserResultConverter:
             
             # Create section nodes (Level 2)
             for i, section_data in enumerate(result.reference_structure['sections']):
+                # Extract business logic - use simple extraction for sections
+                business_logic = f"COBOL {section_data['name']} Section - {section_data['line_content']}"
+                
                 properties = {
                     "line_number": section_data['line_number'],
                     "line_content": section_data['line_content'],
                     "division": section_data.get('division', 'UNKNOWN'),
                     "hierarchy_level": 2,
-                    "cobol_type": "SECTION"
+                    "cobol_type": "SECTION",
+                    "business_logic": business_logic
                 }
                 
                 section_id = f"section_{i + 1}"
@@ -289,13 +297,17 @@ class ParserResultConverter:
         if hasattr(result, 'reference_structure') and result.reference_structure:
             # Create paragraph nodes (Level 3)
             for i, paragraph_data in enumerate(result.reference_structure['paragraphs']):
+                # Extract business logic - use simple extraction for paragraphs
+                business_logic = f"COBOL {paragraph_data['name']} Paragraph - {paragraph_data['line_content']}"
+                
                 properties = {
                     "line_number": paragraph_data['line_number'],
                     "line_content": paragraph_data['line_content'],
                     "division": paragraph_data.get('division', 'UNKNOWN'),
                     "section": paragraph_data.get('section', 'UNKNOWN'),
                     "hierarchy_level": 3,
-                    "cobol_type": "PARAGRAPH"
+                    "cobol_type": "PARAGRAPH",
+                    "business_logic": business_logic
                 }
                 
                 # Remove None values
@@ -822,6 +834,9 @@ CONFIDENCE: [0.0-1.0]
         if hasattr(result, 'reference_structure') and result.reference_structure:
             # Create statement nodes (Level 4)
             for i, statement_data in enumerate(result.reference_structure['statements']):
+                # Extract business logic - use simple extraction for statements
+                business_logic = f"COBOL {statement_data['type']} Statement - {statement_data['line_content']}"
+                
                 properties = {
                     "line_number": statement_data['line_number'],
                     "line_content": statement_data['line_content'],
@@ -829,7 +844,8 @@ CONFIDENCE: [0.0-1.0]
                     "paragraph": statement_data.get('paragraph', 'UNKNOWN'),
                     "section": statement_data.get('section', 'UNKNOWN'),
                     "hierarchy_level": 4,
-                    "cobol_type": "STATEMENT"
+                    "cobol_type": "STATEMENT",
+                    "business_logic": business_logic
                 }
                 
                 # Remove None values
