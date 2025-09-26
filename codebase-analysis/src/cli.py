@@ -8,14 +8,116 @@ Supports multiple programming languages through language-agnostic architecture.
 import click
 import sys
 import logging
+import re
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Dict, List, Any
 
-from .config_manager import get_config, reload_config
-from .utils import read_file_safely, log_processing_step, detect_language_from_extension
-from .output_generator import generate_output
-from .neo4j_converter import convert_parser_result_to_neo4j
-from .neo4j_database import create_neo4j_database, Neo4jConfig
+from config_manager import get_config, reload_config
+from utils import read_file_safely, log_processing_step, detect_language_from_extension
+from output_generator import generate_output
+from neo4j_converter import convert_parser_result_to_neo4j
+from neo4j_database import create_neo4j_database, Neo4jConfig
+
+
+def analyze_code_structure_reference(code_content: str, language: str) -> Dict[str, Any]:
+    """Analyze code file structure using reference analysis (language-agnostic)"""
+    if language == 'cobol':
+        from lang.cobol.analysis.cobol_reference_analyzer import analyze_cobol_structure_reference
+        return analyze_cobol_structure_reference(code_content)
+    else:
+        # For other languages, return basic structure
+        lines = code_content.split('\n')
+        return {
+            'divisions': [],
+            'sections': [],
+            'paragraphs': [],
+            'data_items': [],
+            'files': [],
+            'programs': [],
+            'statements': [],
+            'comments': [],
+            'metrics': {
+                'total_divisions': 0,
+                'total_sections': len([l for l in lines if l.strip()]),
+                'total_paragraphs': 0,
+                'total_data_items': 0,
+                'total_files': 0,
+                'total_programs': 0,
+                'total_statements': 0,
+                'total_comments': len([l for l in lines if l.strip().startswith('#')])
+            }
+        }
+
+
+def enhance_parser_result_with_reference(result, reference_structure: Dict[str, Any], language: str) -> None:
+    """Enhance parser result with reference structure analysis (language-agnostic)"""
+    # Add reference structure to result
+    result.reference_structure = reference_structure
+    
+    # Create enhanced sections based on reference analysis
+    enhanced_sections = []
+    
+    # Process divisions
+    for division in reference_structure['divisions']:
+        section_class = get_section_class(language)
+        section = section_class(
+            name=division['name'],
+            type='DIVISION',
+            line_range=(division['line_number'], division['line_number']),
+            line_count=1,
+            business_logic=f"{language.upper()} {division['name']} Division",
+            confidence=1.0,
+            complexity_score=0.1,
+            risk_level='LOW'
+        )
+        enhanced_sections.append(section)
+    
+    # Process sections
+    for section_data in reference_structure['sections']:
+        section_class = get_section_class(language)
+        section = section_class(
+            name=section_data['name'],
+            type='SECTION',
+            line_range=(section_data['line_number'], section_data['line_number']),
+            line_count=1,
+            business_logic=f"{language.upper()} {section_data['name']} Section",
+            confidence=1.0,
+            complexity_score=0.3,
+            risk_level='LOW'
+        )
+        enhanced_sections.append(section)
+    
+    # Process paragraphs
+    for paragraph_data in reference_structure['paragraphs']:
+        section_class = get_section_class(language)
+        section = section_class(
+            name=paragraph_data['name'],
+            type='PARAGRAPH',
+            line_range=(paragraph_data['line_number'], paragraph_data['line_number']),
+            line_count=1,
+            business_logic=f"{language.upper()} {paragraph_data['name']} Paragraph",
+            confidence=1.0,
+            complexity_score=0.5,
+            risk_level='MEDIUM'
+        )
+        enhanced_sections.append(section)
+    
+    # Replace original sections with enhanced ones
+    result.sections = enhanced_sections
+    
+    # Add reference metrics
+    result.reference_metrics = reference_structure['metrics']
+
+
+def get_section_class(language: str):
+    """Get the appropriate section class for the language"""
+    if language == 'cobol':
+        from lang.cobol.parser.cobol_parser import COBOLSection
+        return COBOLSection
+    else:
+        # For other languages, use base section
+        from lang.base.ontology.base_models import BaseSection
+        return BaseSection
 
 
 @click.group()
@@ -136,6 +238,23 @@ def analyze(ctx, input_file: str, language: Optional[str], output_dir: Optional[
         result = parser.parse(Path(input_file))
         sections = result.sections
         
+        # Perform reference analysis for all languages
+        log_processing_step("Performing reference structure analysis")
+        reference_structure = analyze_code_structure_reference(code_content, language)
+        enhance_parser_result_with_reference(result, reference_structure, language)
+        
+        if verbose:
+            metrics = reference_structure['metrics']
+            click.echo(f"Reference analysis found:")
+            click.echo(f"  - Divisions: {metrics['total_divisions']}")
+            click.echo(f"  - Sections: {metrics['total_sections']}")
+            click.echo(f"  - Paragraphs: {metrics['total_paragraphs']}")
+            click.echo(f"  - Data Items: {metrics['total_data_items']}")
+            click.echo(f"  - Files: {metrics['total_files']}")
+            click.echo(f"  - Programs: {metrics['total_programs']}")
+            click.echo(f"  - Statements: {metrics['total_statements']}")
+            click.echo(f"  - Comments: {metrics['total_comments']}")
+        
         # Analyze with LLM based on strategy
         if structured_analysis:
             log_processing_step("Performing structured LLM analysis on complete file")
@@ -225,6 +344,12 @@ def analyze(ctx, input_file: str, language: Optional[str], output_dir: Optional[
             ],
             "confidence_threshold": confidence_threshold
         }
+        
+        # Add reference structure for all languages
+        if hasattr(result, 'reference_structure'):
+            analysis_result["reference_structure"] = result.reference_structure
+            analysis_result["reference_metrics"] = result.reference_metrics
+            analysis_result["analysis_strategy"] = "reference_enhanced"
         
         # Add structured analysis data if available
         if hasattr(result, 'structured_analysis') and result.structured_analysis:

@@ -1,5 +1,5 @@
 """
-Configuration Manager for COBOL Code Grapher
+Configuration Manager for Code Grapher
 
 Handles loading and validation of configuration from YAML files and environment variables.
 """

@@ -55,9 +55,9 @@ fi
 
 # Create necessary directories
 echo "📁 Creating directories..."
-mkdir -p logs
-mkdir -p data/output/{json,text,logs}
-mkdir -p data/validation/accuracy_reports
+mkdir -p codebase-analysis/logs
+mkdir -p codebase-analysis/data/output/{json,text,logs}
+mkdir -p codebase-analysis/data/validation/accuracy_reports
 
 # Set up pre-commit hooks (if available)
 if command -v pre-commit &> /dev/null; then
@@ -70,7 +70,7 @@ echo "🎉 Setup complete!"
 echo ""
 echo "Next steps:"
 echo "1. Edit .env and add your OpenAI API key"
-echo "2. Run: python main.py --help"
-echo "3. Test with: python main.py analyze data/fixtures/vasu_fraud_management_cobol_reformatted.cbl"
+echo "2. Run: python codebase-analysis/main.py --help"
+echo "3. Test with: python codebase-analysis/main.py analyze codebase-analysis/data/fixtures/vasu_fraud_management_cobol_reformatted.cbl"
 echo ""
 echo "Happy coding! 🚀"

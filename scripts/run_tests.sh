@@ -8,14 +8,14 @@ set -e  # Exit on any error
 echo "🧪 Running COBOL Code Grapher tests..."
 
 # Check if virtual environment exists
-if [ ! -d "venv" ]; then
+if [ ! -d "../venv" ]; then
     echo "❌ Virtual environment not found. Run setup_env.sh first."
     exit 1
 fi
 
 # Activate virtual environment
 echo "🔧 Activating virtual environment..."
-source venv/bin/activate
+source ../venv/bin/activate
 
 # Check if pytest is installed
 if ! command -v pytest &> /dev/null; then
@@ -24,16 +24,16 @@ if ! command -v pytest &> /dev/null; then
 fi
 
 # Set environment variables for testing
-export PYTHONPATH="${PYTHONPATH}:$(pwd)/src"
+export PYTHONPATH="${PYTHONPATH}:$(pwd)/../codebase-analysis/src:$(pwd)/../codebase-analysis"
 export LOG_LEVEL=DEBUG
 
 # Run tests with coverage if available
 if command -v pytest-cov &> /dev/null; then
     echo "📊 Running tests with coverage..."
-    pytest tests/ --cov=src --cov-report=html --cov-report=term
+    pytest ../codebase-analysis/tests/ --cov=../codebase-analysis/src --cov-report=html --cov-report=term
 else
     echo "📝 Running tests..."
-    pytest tests/ -v
+    pytest ../codebase-analysis/tests/ -v
 fi
 
 # Check test results

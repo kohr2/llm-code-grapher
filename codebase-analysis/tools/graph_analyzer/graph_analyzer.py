@@ -221,11 +221,14 @@ class Neo4jGraphAnalyzer:
             
             query = f"""
             MATCH {path_pattern}
-            RETURN 
+            WITH 
                 labels(level{level}) as nodeType,
-                type(r{level-1}) as relationshipType,
-                count(DISTINCT level{level}) as count,
-                sum(DISTINCT level{level}.line_count) as total_lines
+                level{level} as node,
+                level{level}.line_count as line_count
+            RETURN 
+                nodeType,
+                count(DISTINCT node) as count,
+                sum(DISTINCT line_count) as total_lines
             ORDER BY count DESC
             {limit_clause}
             """
@@ -386,6 +389,18 @@ class Neo4jGraphAnalyzer:
             else:
                 rel_str = f" via {', '.join(sorted(rel_types))}" if rel_types else ""
                 print(f"Level {level}: {total_count} nodes ({', '.join(sorted(node_types))}){rel_str}{lines_str}")
+                
+                # Show detailed breakdown by node type
+                if level_data:
+                    print(f"   Breakdown:")
+                    for item in level_data:
+                        node_type = item.get('nodeType', 'Unknown')
+                        if isinstance(node_type, list):
+                            node_type = ', '.join(node_type)
+                        count = item.get('count', 0)
+                        lines = item.get('total_lines', 0) or 0
+                        lines_detail = f" ({lines} lines)" if lines > 0 else ""
+                        print(f"     • {node_type}: {count} nodes{lines_detail}")
         
         # Common paths - Top 5 only
         print(f"\n🛤️  Most Common Paths (Top 5):")

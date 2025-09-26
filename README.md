@@ -8,6 +8,8 @@ A comprehensive tool for analyzing Neo4j graph structures, specifically designed
 - **Database Switching**: Support for multiple Neo4j databases
 - **Relationship Mapping**: Detailed analysis of relationship types and patterns
 - **Path Analysis**: Find most common paths through the graph
+- **Code Analysis Comparison**: Compare code file analysis between two databases
+- **Discrepancy Detection**: Identify differences in parsing and analysis results
 - **Multiple Output Formats**: Table and JSON output options
 - **Export Capabilities**: Save analysis results to files
 
@@ -38,6 +40,16 @@ python graph_analyzer.py --uri bolt://localhost:7687 --user neo4j --password pas
 ### Export Results
 ```bash
 python graph_analyzer.py --uri bolt://localhost:7687 --user neo4j --password password --export analysis.json
+```
+
+### Compare Two Database Analyses
+```bash
+python compare_analysis.py --file code.cbl --db1 database1 --db2 database2
+```
+
+### Compare with Export
+```bash
+python compare_analysis.py --file code.cbl --db1 database1 --db2 database2 --export comparison.json
 ```
 
 ## Usage Examples

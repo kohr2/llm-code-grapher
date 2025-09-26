@@ -7,10 +7,11 @@ Clears all nodes and relationships from the Neo4j database
 import sys
 from pathlib import Path
 
-# Add the project root to the path
-sys.path.append(str(Path(__file__).parent.parent))
+# Add the codebase-analysis directory to the path
+sys.path.append(str(Path(__file__).parent.parent / "codebase-analysis" / "src"))
+sys.path.append(str(Path(__file__).parent.parent / "codebase-analysis"))
 
-from src.neo4j_database import Neo4jDatabase, Neo4jConfig
+from neo4j_database import Neo4jDatabase, Neo4jConfig
 
 
 def main():

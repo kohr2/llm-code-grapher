@@ -14,7 +14,7 @@ from typing import Dict, Any, List, Optional
 from dataclasses import asdict
 from unittest.mock import Mock
 
-from .config_manager import get_config
+from config_manager import get_config
 
 
 def _convert_mock_to_serializable(obj, visited=None):
