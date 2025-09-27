@@ -158,6 +158,11 @@ class ParserResultConverter:
         for node in business_rule_nodes:
             graph_data.add_node(node)
         
+        # Add business logic nodes for reference structure
+        business_logic_nodes = self._create_business_logic_nodes(result, program_node.node_id)
+        for node in business_logic_nodes:
+            graph_data.add_node(node)
+        
         # Add relationships (now with access to all nodes)
         relationships = self._create_relationships(result, program_node.node_id)
         for rel in relationships:
@@ -211,15 +216,11 @@ class ParserResultConverter:
         if hasattr(result, 'reference_structure') and result.reference_structure:
             # Create division nodes (Level 1)
             for i, division in enumerate(result.reference_structure['divisions']):
-                # Extract business logic - use simple extraction for divisions
-                business_logic = f"COBOL {division['name']} Division - {division['line_content']}"
-                
                 properties = {
                     "line_number": division['line_number'],
                     "line_content": division['line_content'],
                     "hierarchy_level": 1,
-                    "cobol_type": "DIVISION",
-                    "business_logic": business_logic
+                    "cobol_type": "DIVISION"
                 }
                 
                 division_id = f"division_{i + 1}"
@@ -234,16 +235,12 @@ class ParserResultConverter:
             
             # Create section nodes (Level 2)
             for i, section_data in enumerate(result.reference_structure['sections']):
-                # Extract business logic - use simple extraction for sections
-                business_logic = f"COBOL {section_data['name']} Section - {section_data['line_content']}"
-                
                 properties = {
                     "line_number": section_data['line_number'],
                     "line_content": section_data['line_content'],
                     "division": section_data.get('division', 'UNKNOWN'),
                     "hierarchy_level": 2,
-                    "cobol_type": "SECTION",
-                    "business_logic": business_logic
+                    "cobol_type": "SECTION"
                 }
                 
                 section_id = f"section_{i + 1}"
@@ -297,17 +294,13 @@ class ParserResultConverter:
         if hasattr(result, 'reference_structure') and result.reference_structure:
             # Create paragraph nodes (Level 3)
             for i, paragraph_data in enumerate(result.reference_structure['paragraphs']):
-                # Extract business logic - use simple extraction for paragraphs
-                business_logic = f"COBOL {paragraph_data['name']} Paragraph - {paragraph_data['line_content']}"
-                
                 properties = {
                     "line_number": paragraph_data['line_number'],
                     "line_content": paragraph_data['line_content'],
                     "division": paragraph_data.get('division', 'UNKNOWN'),
                     "section": paragraph_data.get('section', 'UNKNOWN'),
                     "hierarchy_level": 3,
-                    "cobol_type": "PARAGRAPH",
-                    "business_logic": business_logic
+                    "cobol_type": "PARAGRAPH"
                 }
                 
                 # Remove None values
@@ -834,9 +827,6 @@ CONFIDENCE: [0.0-1.0]
         if hasattr(result, 'reference_structure') and result.reference_structure:
             # Create statement nodes (Level 4)
             for i, statement_data in enumerate(result.reference_structure['statements']):
-                # Extract business logic - use simple extraction for statements
-                business_logic = f"COBOL {statement_data['type']} Statement - {statement_data['line_content']}"
-                
                 properties = {
                     "line_number": statement_data['line_number'],
                     "line_content": statement_data['line_content'],
@@ -844,8 +834,7 @@ CONFIDENCE: [0.0-1.0]
                     "paragraph": statement_data.get('paragraph', 'UNKNOWN'),
                     "section": statement_data.get('section', 'UNKNOWN'),
                     "hierarchy_level": 4,
-                    "cobol_type": "STATEMENT",
-                    "business_logic": business_logic
+                    "cobol_type": "STATEMENT"
                 }
                 
                 # Remove None values
@@ -996,6 +985,10 @@ CONFIDENCE: [0.0-1.0]
                     )
                     relationships.append(rel)
         
+        # Add business logic relationships
+        business_logic_relationships = self._create_business_logic_relationships(result, program_id)
+        relationships.extend(business_logic_relationships)
+        
         # Add relationships from parser result (if any)
         for rel in result.relationships:
             # Convert parser relationship to Neo4j relationship
@@ -1015,6 +1008,46 @@ CONFIDENCE: [0.0-1.0]
         
         # Validate tree structure - ensure no circular or multiple parent relationships
         self._validate_tree_structure(relationships)
+        
+        return relationships
+    
+    def _create_business_logic_relationships(self, result: BaseParserResult, program_id: str) -> List[CodeRelationship]:
+        """Create relationships between BusinessLogic nodes and their corresponding code components"""
+        relationships = []
+        
+        # For COBOL, use reference structure if available
+        if hasattr(result, 'reference_structure') and result.reference_structure:
+            # Create relationships for each BusinessLogic node
+            for i, paragraph_data in enumerate(result.reference_structure['paragraphs']):
+                if self._is_business_logic_paragraph(paragraph_data['name']):
+                    business_logic_id = f"business_logic_{i + 1}"
+                    paragraph_id = f"paragraph_{i + 1}"
+                    
+                    # Create relationship: Paragraph CONTAINS BusinessLogic
+                    rel = CodeRelationship(
+                        source_id=paragraph_id,
+                        target_id=business_logic_id,
+                        relationship_type="CONTAINS",
+                        properties={
+                            "description": f"Paragraph {paragraph_data['name']} contains business logic",
+                            "confidence": 1.0,
+                            "relationship_type": "business_logic_containment"
+                        }
+                    )
+                    relationships.append(rel)
+                    
+                    # Create relationship: BusinessLogic IMPLEMENTS business rule
+                    rel = CodeRelationship(
+                        source_id=business_logic_id,
+                        target_id=paragraph_id,
+                        relationship_type="IMPLEMENTS",
+                        properties={
+                            "description": f"Business logic implements {paragraph_data['name']}",
+                            "confidence": 1.0,
+                            "relationship_type": "business_logic_implementation"
+                        }
+                    )
+                    relationships.append(rel)
         
         return relationships
     
@@ -1387,6 +1420,135 @@ CONFIDENCE: [0.0-1.0]
         
         # Default to program for now
         return program_id
+    
+    def _create_business_logic_nodes(self, result: BaseParserResult, program_id: str) -> List[CodeNode]:
+        """Create BusinessLogic nodes from reference structure"""
+        nodes = []
+        
+        # For COBOL, use reference structure if available to create BusinessLogic nodes
+        if hasattr(result, 'reference_structure') and result.reference_structure:
+            # Create BusinessLogic nodes for paragraphs that contain business logic
+            for i, paragraph_data in enumerate(result.reference_structure['paragraphs']):
+                # Check if this paragraph contains business logic (not just technical operations)
+                if self._is_business_logic_paragraph(paragraph_data['name']):
+                    business_logic_id = f"business_logic_{i + 1}"
+                    
+                    # Extract business logic description
+                    business_logic_description = self._extract_business_logic_description(
+                        paragraph_data['line_content'], 
+                        paragraph_data['name']
+                    )
+                    
+                    properties = {
+                        "line_number": paragraph_data['line_number'],
+                        "line_content": paragraph_data['line_content'],
+                        "description": business_logic_description,
+                        "business_rule_type": self._classify_business_rule_type(paragraph_data['name']),
+                        "functional_area": self._determine_functional_area(paragraph_data['name']),
+                        "priority": self._determine_priority(paragraph_data['name']),
+                        "risk_level": self._determine_risk_level(paragraph_data['name']),
+                        "confidence": 0.9,
+                        "containing_paragraph": paragraph_data['name'],
+                        "containing_section": paragraph_data.get('section', 'UNKNOWN'),
+                        "containing_division": paragraph_data.get('division', 'UNKNOWN')
+                    }
+                    
+                    # Remove None values
+                    properties = {k: v for k, v in properties.items() if v is not None}
+                    
+                    node = CodeNode(
+                        node_id=business_logic_id,
+                        node_type="BusinessLogic",
+                        name=f"BusinessLogic_{paragraph_data['name']}",
+                        language=result.program.language,
+                        properties=properties
+                    )
+                    nodes.append(node)
+        
+        return nodes
+    
+    def _is_business_logic_paragraph(self, paragraph_name: str) -> bool:
+        """Check if a paragraph contains business logic (not just technical operations)"""
+        # Business logic paragraphs typically contain rule names, validation logic, or business decisions
+        business_logic_indicators = [
+            'RULE-', 'VALIDATE-', 'CHECK-', 'ANALYZE-', 'SCORE-', 'RISK-', 'FRAUD-',
+            'AMOUNT-', 'LIMIT-', 'THRESHOLD-', 'PATTERN-', 'BEHAVIOR-', 'CUSTOMER-',
+            'MERCHANT-', 'TRANSACTION-', 'ACCOUNT-', 'CARD-', 'VELOCITY-', 'LOCATION-',
+            'TIME-', 'CATEGORY-', 'SUSPICIOUS-', 'ALERT-', 'DECISION-', 'ACTION-'
+        ]
+        
+        paragraph_upper = paragraph_name.upper()
+        return any(indicator in paragraph_upper for indicator in business_logic_indicators)
+    
+    def _extract_business_logic_description(self, line_content: str, paragraph_name: str) -> str:
+        """Extract business logic description from paragraph content"""
+        # Simple extraction - in a real implementation, this could use LLM analysis
+        if 'RULE-' in paragraph_name.upper():
+            return f"Business rule: {paragraph_name} - {line_content}"
+        elif 'VALIDATE-' in paragraph_name.upper():
+            return f"Validation logic: {paragraph_name} - {line_content}"
+        elif 'CHECK-' in paragraph_name.upper():
+            return f"Business check: {paragraph_name} - {line_content}"
+        elif 'ANALYZE-' in paragraph_name.upper():
+            return f"Analysis logic: {paragraph_name} - {line_content}"
+        else:
+            return f"Business logic: {paragraph_name} - {line_content}"
+    
+    def _classify_business_rule_type(self, paragraph_name: str) -> str:
+        """Classify the type of business rule"""
+        paragraph_upper = paragraph_name.upper()
+        
+        if 'RULE-' in paragraph_upper:
+            return "BUSINESS_RULE"
+        elif 'VALIDATE-' in paragraph_upper:
+            return "VALIDATION_RULE"
+        elif 'CHECK-' in paragraph_upper:
+            return "BUSINESS_CHECK"
+        elif 'ANALYZE-' in paragraph_upper:
+            return "ANALYSIS_RULE"
+        elif 'SCORE-' in paragraph_upper:
+            return "SCORING_RULE"
+        else:
+            return "BUSINESS_LOGIC"
+    
+    def _determine_functional_area(self, paragraph_name: str) -> str:
+        """Determine the functional area of the business logic"""
+        paragraph_upper = paragraph_name.upper()
+        
+        if 'FRAUD-' in paragraph_upper:
+            return "FRAUD_DETECTION"
+        elif 'CUSTOMER-' in paragraph_upper:
+            return "CUSTOMER_MANAGEMENT"
+        elif 'TRANSACTION-' in paragraph_upper:
+            return "TRANSACTION_PROCESSING"
+        elif 'RISK-' in paragraph_upper:
+            return "RISK_MANAGEMENT"
+        elif 'VELOCITY-' in paragraph_upper:
+            return "VELOCITY_MONITORING"
+        else:
+            return "BUSINESS_LOGIC"
+    
+    def _determine_priority(self, paragraph_name: str) -> str:
+        """Determine the priority of the business logic"""
+        paragraph_upper = paragraph_name.upper()
+        
+        if any(keyword in paragraph_upper for keyword in ['CRITICAL', 'HIGH-AMOUNT', 'FRAUD']):
+            return "HIGH"
+        elif any(keyword in paragraph_upper for keyword in ['MEDIUM', 'STANDARD']):
+            return "MEDIUM"
+        else:
+            return "MEDIUM"
+    
+    def _determine_risk_level(self, paragraph_name: str) -> str:
+        """Determine the risk level of the business logic"""
+        paragraph_upper = paragraph_name.upper()
+        
+        if any(keyword in paragraph_upper for keyword in ['CRITICAL', 'FRAUD', 'HIGH-RISK']):
+            return "HIGH"
+        elif any(keyword in paragraph_upper for keyword in ['MEDIUM', 'STANDARD']):
+            return "MEDIUM"
+        else:
+            return "MEDIUM"
 
 
 def convert_parser_result_to_neo4j(result: BaseParserResult, llm_config: LLMProviderConfig, language: str = None) -> GraphData:
